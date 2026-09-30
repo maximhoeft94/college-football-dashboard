@@ -288,6 +288,10 @@ select {
 select:focus { border-color: var(--accent-dim); }
 .game-picker { display: flex; align-items: center; margin-top: 4px; flex-wrap: wrap; }
 .game-picker select { flex: 1 1 120px; }
+@media (max-width: 480px) {
+  .game-picker { flex-direction: column; align-items: stretch; gap: 4px; }
+  .game-picker select { width: 100%; margin: 0 0 6px; }
+}
 .drive-row { cursor: pointer; }
 .drive-row-mine td { background: var(--surface); }
 .team-dot { display: inline-block; width: 10px; height: 10px; border-radius: 0; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(255,255,255,0.4); }
@@ -408,6 +412,22 @@ select:focus { border-color: var(--accent-dim); }
 }
 @media (max-width: 900px) { .leaders-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .leaders-grid { grid-template-columns: 1fr; } }
+.ep-3col-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 700px) { .ep-3col-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 460px) { .ep-3col-grid { grid-template-columns: 1fr; } }
+.radar-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 860px) { .radar-row { grid-template-columns: 1fr; } }
+/* Any chart/table wrap container scrolls horizontally instead of forcing the page wider on phones. */
+div[id$="Wrap"] { overflow-x: auto; }
+
+@media (max-width: 640px) {
+  body { padding: 24px 12px 56px; font-size: 14px; }
+  .wordmark { font-size: 16px; }
+  .lede { font-size: 15px; }
+  .card { padding: 14px; margin-bottom: 18px; }
+  .section-label { font-size: 18px; padding: 12px 14px; margin: 28px 0 14px; }
+  .card-label { font-size: 15px; }
+}
 .leader-card {
   border-radius: var(--radius);
   border: 1px solid var(--line);
@@ -645,7 +665,8 @@ tr.team-row.selected td { background: var(--surface-raised); }
   display: flex;
   align-items: center;
   font-size: 16px;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -801,7 +822,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
       <div class="card-label">Standings</div>
       <div class="card-sub" id="standingsUpdatedText"></div>
     </div>
-    <div class="table-scroll" style="max-height:none; overflow:visible;">
+    <div class="table-scroll" style="max-height:none; overflow-x:auto; overflow-y:visible;">
       <table>
         <thead>
           <tr>
@@ -950,7 +971,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
 
   <div class="section-label">Head-to-Head</div>
 
-  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; align-items:start;">
+  <div class="radar-row">
     <div class="card" style="min-width:0;">
       <div class="card-label">Team vs. Team Radar</div>
       <div class="game-picker" style="gap:14px; margin-top:2px; margin-bottom:6px;">
@@ -1035,7 +1056,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
   <div class="card">
     <div class="card-label">EPA Summary</div>
     <div class="card-sub" style="margin-bottom:6px;">Expected Points Added per play, based on down, distance, and field position at the time of the play.</div>
-    <div id="epSummaryWrap" class="leaders-grid" style="grid-template-columns: repeat(3, 1fr);"></div>
+    <div id="epSummaryWrap" class="ep-3col-grid"></div>
   </div>
 
   <div class="card ep-chart-card" data-tip="EPA BY DOWN&#10;&#10;Average offensive EPA per play, split out by down.&#10;&#10;Formula: EPA = EP(after play) &#8722; EP(before play), averaged for all plays on that down.&#10;&#10;Shows whether efficiency holds up on later downs, when the defense typically has the advantage.">
@@ -2221,7 +2242,10 @@ function switchConference(conf) {
 /* ===================== Deeper Analyses ===================== */
 
 function svgOpen(w, h, extra) {
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px; display:block; margin:0 auto; font-family:'JetBrains Mono',monospace;" ${extra||''}>`;
+  // min-width keeps chart text legible on phones: the chart won't shrink below its
+  // designed pixel size, so narrow screens scroll horizontally within the card instead
+  // of proportionally shrinking SVG text into illegibility.
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px; min-width:${w}px; display:block; margin:0 auto; font-family:'JetBrains Mono',monospace;" ${extra||''}>`;
 }
 
 function niceMax(v) {
@@ -3466,7 +3490,7 @@ function renderEPRedZone() {
   const tdRate = off.length ? (tds.length/off.length*100) : 0;
 
   wrap.innerHTML = `
-    <div class="leaders-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="ep-3col-grid">
       <div class="leader-card ep-metric-card" data-tip="RED ZONE PLAYS&#10;&#10;Count of offensive plays run from inside the opponent's 20-yard line, across all completed games this season.">
         <div class="leader-title">Red Zone Plays</div>
         <div class="leader-row leader-row-first"><span class="leader-value" style="font-size:22px;">${off.length}</span></div>
