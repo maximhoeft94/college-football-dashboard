@@ -1048,9 +1048,16 @@ tr.team-row.selected td { background: var(--surface-raised); }
 
   <div class="section-label">Expected Points Model</div>
 
+  <div class="game-picker" style="gap:10px; margin-bottom:10px;">
+    <label style="font-size:12px; color:var(--text-dim); margin-right:6px;">Compare</label>
+    <button class="toggle-btn toggle-btn-active" id="epModeTeamBtn">Teams</button>
+    <button class="toggle-btn" id="epModeConfBtn">Conferences</button>
+  </div>
   <div class="game-picker" style="gap:14px; margin-bottom:20px;">
-    <label style="font-size:12px; color:var(--text-dim); margin-right:6px;">Team</label>
-    <select id="epTeamSelect"></select>
+    <label style="font-size:12px; color:var(--text-dim); margin-right:6px;" id="epLabelA">Team A</label>
+    <select id="epEntityA"></select>
+    <label style="font-size:12px; color:var(--text-dim); margin:0 6px 0 14px;" id="epLabelB">Team B</label>
+    <select id="epEntityB"></select>
   </div>
 
   <div class="card">
@@ -1071,9 +1078,9 @@ tr.team-row.selected td { background: var(--surface-raised); }
     <div id="epByTypeWrap"></div>
   </div>
 
-  <div class="card ep-chart-card" data-tip="CUMULATIVE EPA&#10;&#10;Running total of EPA across every offensive play this season, in chronological order.&#10;&#10;A steadily climbing line reflects sustained offensive efficiency. Flat or falling stretches usually mean stalled drives, turnovers, or a tough defense.&#10;&#10;The dashed vertical line marks the boundary between weeks.">
-    <div class="card-label">Cumulative EPA Over the Season</div>
-    <div class="card-sub" style="margin-bottom:6px;">Running total of offensive EPA, play by play, across the season so far.</div>
+  <div class="card ep-chart-card" data-tip="EPA BY WEEK&#10;&#10;Average offensive EPA per play, computed separately for each week of the season.&#10;&#10;Using a weekly average (rather than a running total) keeps the comparison fair even when the two sides have played a different number of games.">
+    <div class="card-label">EPA by Week</div>
+    <div class="card-sub" style="margin-bottom:6px;">Average offensive EPA per play, by week.</div>
     <div id="epCumulativeWrap"></div>
   </div>
 
@@ -1083,9 +1090,9 @@ tr.team-row.selected td { background: var(--surface-raised); }
     <div id="epRedZoneWrap"></div>
   </div>
 
-  <div class="card ep-chart-card" data-tip="MOST EXPLOSIVE PLAYS&#10;&#10;This team's highest-value offensive plays this season, ranked by EPA (Expected Points Added).&#10;&#10;A play's EPA reflects how many points more (or fewer) than expected it was worth, given the down, distance, and field position before the snap.">
+  <div class="card ep-chart-card" data-tip="MOST EXPLOSIVE PLAYS&#10;&#10;Each side's highest-value offensive plays this season, ranked by EPA (Expected Points Added).&#10;&#10;A play's EPA reflects how many points more (or fewer) than expected it was worth, given the down, distance, and field position before the snap. Hover a play's EPA value for the full play description.">
     <div class="card-label">Most Explosive Plays</div>
-    <div class="card-sub" style="margin-bottom:6px;">This team's highest-value offensive plays this season, ranked by EPA.</div>
+    <div class="card-sub" style="margin-bottom:6px;">Each side's top 10 highest-value offensive plays this season, ranked by EPA.</div>
     <div id="epExplosiveWrap"></div>
   </div>
 
@@ -3301,27 +3308,56 @@ function wireExplosiveTabs() {
 
 /* ===================== Expected Points Model ===================== */
 
-let epTeam = 'BYU';
+let epMode = 'team'; // 'team' | 'conference'
+let epEntityA = 'BYU';
+let epEntityB = 'TCU';
+
+// Returns the combined play list for a team, or every play from every team
+// in a conference when comparing at the conference level.
+function getEntityPlays(entity) {
+  if (epMode === 'team') return teamPlays[entity] || [];
+  const roster = conferenceRosters[entity] || [];
+  // Tag each play with its originating team so conference-level views (e.g. explosive
+  // plays) can still show whose play it was once teams are pooled together.
+  return roster.flatMap(t => (teamPlays[t] || []).map(p => ({ ...p, team: t })));
+}
 
 function populateEPTeamSelect() {
-  const sel = document.getElementById('epTeamSelect');
-  if (!sel) return;
-  const confTeams = ACTIVE_ROSTER.slice().sort((a, b) => a.localeCompare(b));
-  sel.innerHTML = confTeams.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  const selA = document.getElementById('epEntityA');
+  const selB = document.getElementById('epEntityB');
+  const modeTeamBtn = document.getElementById('epModeTeamBtn');
+  const modeConfBtn = document.getElementById('epModeConfBtn');
+  if (!selA || !selB) return;
 
-  if (confTeams.includes(epTeam)) {
-    sel.value = epTeam;
-  } else if (confTeams.includes('BYU')) {
-    epTeam = 'BYU';
-    sel.value = epTeam;
-  } else {
-    epTeam = confTeams[0];
-    sel.value = epTeam;
-  }
+  modeTeamBtn.classList.toggle('toggle-btn-active', epMode === 'team');
+  modeConfBtn.classList.toggle('toggle-btn-active', epMode === 'conference');
+  document.getElementById('epLabelA').textContent = epMode === 'team' ? 'Team A' : 'Conference A';
+  document.getElementById('epLabelB').textContent = epMode === 'team' ? 'Team B' : 'Conference B';
 
-  sel.onchange = () => {
-    epTeam = sel.value;
-    renderAllEPCards();
+  const options = epMode === 'team'
+    ? Object.keys(teamPlays).sort((a, b) => a.localeCompare(b))
+    : Object.keys(conferenceRosters).filter(c => c !== 'All Conferences').sort((a, b) => a.localeCompare(b));
+
+  const optHtml = options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+  selA.innerHTML = optHtml;
+  selB.innerHTML = optHtml;
+
+  if (!options.includes(epEntityA)) epEntityA = options[0];
+  if (!options.includes(epEntityB)) epEntityB = options.find(o => o !== epEntityA) || options[0];
+  selA.value = epEntityA;
+  selB.value = epEntityB;
+
+  selA.onchange = () => { epEntityA = selA.value; renderAllEPCards(); };
+  selB.onchange = () => { epEntityB = selB.value; renderAllEPCards(); };
+  modeTeamBtn.onclick = () => {
+    if (epMode === 'team') return;
+    epMode = 'team'; epEntityA = 'BYU'; epEntityB = 'TCU';
+    populateEPTeamSelect(); renderAllEPCards();
+  };
+  modeConfBtn.onclick = () => {
+    if (epMode === 'conference') return;
+    epMode = 'conference'; epEntityA = 'Big 12'; epEntityB = 'SEC';
+    populateEPTeamSelect(); renderAllEPCards();
   };
 }
 
@@ -3344,60 +3380,82 @@ const EP_METRIC_DEFS = {
 function renderEPSummary() {
   const wrap = document.getElementById('epSummaryWrap');
   if (!wrap) return;
-  const allPlays = teamPlays[epTeam] || [];
-  const off = allPlays.filter(p => p.off);
-  const def = allPlays.filter(p => !p.off);
 
-  const avgEpa = arr => arr.length ? arr.reduce((s,p) => s + p.ppa, 0) / arr.length : 0;
-  const successRate = arr => arr.length ? arr.filter(p => epSuccess(p.down, p.dist, p.yds)).length / arr.length : 0;
-  const explosive = arr => arr.filter(p => (p.type.includes('Rush') && p.yds >= 15) || (p.type.includes('Pass') && p.yds >= 20));
+  function stats(entity) {
+    const all = getEntityPlays(entity);
+    const off = all.filter(p => p.off);
+    const def = all.filter(p => !p.off);
+    const avgEpa = arr => arr.length ? arr.reduce((s,p) => s + p.ppa, 0) / arr.length : 0;
+    const successRate = arr => arr.length ? arr.filter(p => epSuccess(p.down, p.dist, p.yds)).length / arr.length : 0;
+    const explosive = arr => arr.filter(p => (p.type.includes('Rush') && p.yds >= 15) || (p.type.includes('Pass') && p.yds >= 20));
+    return {
+      offEpa: avgEpa(off), defEpa: avgEpa(def),
+      offSuccess: successRate(off) * 100, defSuccess: successRate(def) * 100,
+      explosiveRate: off.length ? explosive(off).length / off.length * 100 : 0,
+      totalPlays: off.length
+    };
+  }
+  const a = stats(epEntityA), b = stats(epEntityB);
 
-  const cards = [
-    { label: 'Off EPA / Play', value: avgEpa(off).toFixed(2), good: avgEpa(off) >= 0 },
-    { label: 'Def EPA Allowed / Play', value: avgEpa(def).toFixed(2), good: avgEpa(def) <= 0 },
-    { label: 'Off Success Rate', value: (successRate(off)*100).toFixed(1) + '%', good: successRate(off) >= 0.45 },
-    { label: 'Def Success Rate Allowed', value: (successRate(def)*100).toFixed(1) + '%', good: successRate(def) <= 0.45 },
-    { label: 'Explosive Play Rate', value: (off.length ? (explosive(off).length/off.length*100) : 0).toFixed(1) + '%', good: true },
-    { label: 'Total Offensive Plays', value: off.length, good: true }
+  const rows = [
+    { label: 'Off EPA / Play', va: a.offEpa, vb: b.offEpa, fmt: v => v.toFixed(2), higherBetter: true, tip: EP_METRIC_DEFS['Off EPA / Play'] },
+    { label: 'Def EPA Allowed / Play', va: a.defEpa, vb: b.defEpa, fmt: v => v.toFixed(2), higherBetter: false, tip: EP_METRIC_DEFS['Def EPA Allowed / Play'] },
+    { label: 'Off Success Rate', va: a.offSuccess, vb: b.offSuccess, fmt: v => v.toFixed(1) + '%', higherBetter: true, tip: EP_METRIC_DEFS['Off Success Rate'] },
+    { label: 'Def Success Rate Allowed', va: a.defSuccess, vb: b.defSuccess, fmt: v => v.toFixed(1) + '%', higherBetter: false, tip: EP_METRIC_DEFS['Def Success Rate Allowed'] },
+    { label: 'Explosive Play Rate', va: a.explosiveRate, vb: b.explosiveRate, fmt: v => v.toFixed(1) + '%', higherBetter: true, tip: EP_METRIC_DEFS['Explosive Play Rate'] },
+    { label: 'Total Offensive Plays', va: a.totalPlays, vb: b.totalPlays, fmt: v => String(v), higherBetter: null, tip: EP_METRIC_DEFS['Total Offensive Plays'] }
   ];
 
-  wrap.innerHTML = cards.map(c => `
-    <div class="leader-card ep-metric-card" data-tip="${escapeHtml(EP_METRIC_DEFS[c.label] || c.label)}">
-      <div class="leader-title">${escapeHtml(c.label)}</div>
-      <div class="leader-row leader-row-first">
-        <span class="leader-value ${c.good ? 'good' : 'bad'}" style="font-size:22px;">${c.value}</span>
-      </div>
-    </div>
-  `).join('');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th class="left">${escapeHtml(epEntityA)}</th><th></th><th class="left">${escapeHtml(epEntityB)}</th></tr></thead>
+      <tbody>
+        ${rows.map(r => {
+          const aBetter = r.higherBetter !== null && (r.higherBetter ? r.va > r.vb : r.va < r.vb);
+          const bBetter = r.higherBetter !== null && (r.higherBetter ? r.vb > r.va : r.vb < r.va);
+          return `
+          <tr>
+            <td class="mono" style="${aBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.va)}</td>
+            <td class="left" data-tip="${escapeHtml(r.tip)}" style="cursor:help; color:var(--text-dim); font-size:13px;">${escapeHtml(r.label)}</td>
+            <td class="mono" style="${bBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.vb)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 function renderEPByDown() {
   const wrap = document.getElementById('epByDownWrap');
   if (!wrap) return;
-  const off = (teamPlays[epTeam] || []).filter(p => p.off && p.down >= 1 && p.down <= 4);
+  const offA = getEntityPlays(epEntityA).filter(p => p.off && p.down >= 1 && p.down <= 4);
+  const offB = getEntityPlays(epEntityB).filter(p => p.off && p.down >= 1 && p.down <= 4);
 
-  const W = 700, H = 260, M = { l: 60, r: 30, t: 20, b: 40 };
+  const W = 700, H = 280, M = { l: 60, r: 30, t: 40, b: 40 };
   const downs = [1,2,3,4];
-  const vals = downs.map(d => {
-    const plays = off.filter(p => p.down === d);
-    return plays.length ? plays.reduce((s,p)=>s+p.ppa,0)/plays.length : 0;
-  });
-  const maxAbs = Math.max(0.3, ...vals.map(Math.abs));
+  const avgFor = (arr, d) => { const p = arr.filter(x => x.down === d); return p.length ? p.reduce((s,x)=>s+x.ppa,0)/p.length : 0; };
+  const valsA = downs.map(d => avgFor(offA, d));
+  const valsB = downs.map(d => avgFor(offB, d));
+  const maxAbs = Math.max(0.3, ...valsA.map(Math.abs), ...valsB.map(Math.abs));
   const zeroY = M.t + (H-M.t-M.b)/2;
   const scale = ((H-M.t-M.b)/2) / (maxAbs*1.2);
-  const barW = (W-M.l-M.r) / downs.length - 20;
+  const groupW = (W-M.l-M.r) / downs.length;
+  const barW = groupW/2 - 12;
 
   let svg = svgOpen(W, H);
   svg += `<line x1="${M.l}" y1="${zeroY}" x2="${W-M.r}" y2="${zeroY}" stroke="var(--line)" stroke-width="1"/>`;
+  svg += `<circle cx="${M.l}" cy="16" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityA)}</text>`;
+  svg += `<circle cx="${M.l+150}" cy="16" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityB)}</text>`;
   downs.forEach((d, i) => {
-    const v = vals[i];
-    const bx = M.l + i*((W-M.l-M.r)/downs.length) + 10;
-    const barH = Math.abs(v) * scale;
-    const by = v >= 0 ? zeroY - barH : zeroY;
-    const color = v >= 0 ? 'var(--accent)' : 'var(--bad)';
-    svg += `<rect x="${bx}" y="${by}" width="${barW}" height="${Math.max(barH,1)}" fill="${color}" rx="3" data-tip="Down ${d}\nEPA/Play: ${v.toFixed(2)}" style="cursor:pointer;"/>`;
-    svg += `<text x="${bx+barW/2}" y="${v>=0?by-6:by+barH+16}" font-size="12" fill="var(--text)" text-anchor="middle" font-weight="600">${v.toFixed(2)}</text>`;
-    svg += `<text x="${bx+barW/2}" y="${H-10}" font-size="12" fill="var(--text-dim)" text-anchor="middle">${d===1?'1st':d===2?'2nd':d===3?'3rd':'4th'} Down</text>`;
+    const gx = M.l + i*groupW;
+    [[valsA[i], 'var(--accent)', epEntityA], [valsB[i], 'var(--accent2)', epEntityB]].forEach(([v, color, name], j) => {
+      const bx = gx + 8 + j*(barW+8);
+      const barH = Math.abs(v) * scale;
+      const by = v >= 0 ? zeroY - barH : zeroY;
+      svg += `<rect x="${bx}" y="${by}" width="${barW}" height="${Math.max(barH,1)}" fill="${color}" rx="3" data-tip="${escapeHtml(name)}\nDown ${d}\nEPA/Play: ${v.toFixed(2)}" style="cursor:pointer;"/>`;
+      svg += `<text x="${bx+barW/2}" y="${v>=0?by-6:by+barH+16}" font-size="10" fill="var(--text)" text-anchor="middle" font-weight="600">${v.toFixed(2)}</text>`;
+    });
+    svg += `<text x="${gx+groupW/2}" y="${H-10}" font-size="12" fill="var(--text-dim)" text-anchor="middle">${d===1?'1st':d===2?'2nd':d===3?'3rd':'4th'} Down</text>`;
   });
   svg += `</svg>`;
   wrap.innerHTML = svg;
@@ -3406,29 +3464,36 @@ function renderEPByDown() {
 function renderEPByType() {
   const wrap = document.getElementById('epByTypeWrap');
   if (!wrap) return;
-  const off = (teamPlays[epTeam] || []).filter(p => p.off);
-  const rush = off.filter(p => p.type.includes('Rush'));
-  const pass = off.filter(p => p.type.includes('Pass'));
+  const offA = getEntityPlays(epEntityA).filter(p => p.off);
+  const offB = getEntityPlays(epEntityB).filter(p => p.off);
+  const rushA = offA.filter(p => p.type.includes('Rush')), passA = offA.filter(p => p.type.includes('Pass'));
+  const rushB = offB.filter(p => p.type.includes('Rush')), passB = offB.filter(p => p.type.includes('Pass'));
+  const avg = arr => arr.length ? arr.reduce((s,p)=>s+p.ppa,0)/arr.length : 0;
 
-  const W = 500, H = 260, M = { l: 60, r: 30, t: 20, b: 40 };
-  const types = [{ label: 'Rushing', plays: rush }, { label: 'Passing', plays: pass }];
-  const vals = types.map(t => t.plays.length ? t.plays.reduce((s,p)=>s+p.ppa,0)/t.plays.length : 0);
-  const maxAbs = Math.max(0.3, ...vals.map(Math.abs));
+  const W = 500, H = 280, M = { l: 60, r: 30, t: 40, b: 40 };
+  const types = ['Rushing', 'Passing'];
+  const valsA = [avg(rushA), avg(passA)], nA = [rushA.length, passA.length];
+  const valsB = [avg(rushB), avg(passB)], nB = [rushB.length, passB.length];
+  const maxAbs = Math.max(0.3, ...valsA.map(Math.abs), ...valsB.map(Math.abs));
   const zeroY = M.t + (H-M.t-M.b)/2;
   const scale = ((H-M.t-M.b)/2) / (maxAbs*1.2);
-  const barW = (W-M.l-M.r) / types.length - 40;
+  const groupW = (W-M.l-M.r) / types.length;
+  const barW = groupW/2 - 16;
 
   let svg = svgOpen(W, H);
   svg += `<line x1="${M.l}" y1="${zeroY}" x2="${W-M.r}" y2="${zeroY}" stroke="var(--line)" stroke-width="1"/>`;
+  svg += `<circle cx="${M.l}" cy="16" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityA)}</text>`;
+  svg += `<circle cx="${M.l+150}" cy="16" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityB)}</text>`;
   types.forEach((t, i) => {
-    const v = vals[i];
-    const bx = M.l + i*((W-M.l-M.r)/types.length) + 20;
-    const barH = Math.abs(v) * scale;
-    const by = v >= 0 ? zeroY - barH : zeroY;
-    const color = v >= 0 ? 'var(--accent)' : 'var(--bad)';
-    svg += `<rect x="${bx}" y="${by}" width="${barW}" height="${Math.max(barH,1)}" fill="${color}" rx="3" data-tip="${escapeHtml(t.label)}\nEPA/Play: ${v.toFixed(2)}\nPlays: ${t.plays.length}" style="cursor:pointer;"/>`;
-    svg += `<text x="${bx+barW/2}" y="${v>=0?by-6:by+barH+16}" font-size="12" fill="var(--text)" text-anchor="middle" font-weight="600">${v.toFixed(2)}</text>`;
-    svg += `<text x="${bx+barW/2}" y="${H-10}" font-size="12" fill="var(--text-dim)" text-anchor="middle">${escapeHtml(t.label)}</text>`;
+    const gx = M.l + i*groupW;
+    [[valsA[i], 'var(--accent)', epEntityA, nA[i]], [valsB[i], 'var(--accent2)', epEntityB, nB[i]]].forEach(([v, color, name, n], j) => {
+      const bx = gx + 12 + j*(barW+10);
+      const barH = Math.abs(v) * scale;
+      const by = v >= 0 ? zeroY - barH : zeroY;
+      svg += `<rect x="${bx}" y="${by}" width="${barW}" height="${Math.max(barH,1)}" fill="${color}" rx="3" data-tip="${escapeHtml(name)}\n${escapeHtml(t)}\nEPA/Play: ${v.toFixed(2)}\nPlays: ${n}" style="cursor:pointer;"/>`;
+      svg += `<text x="${bx+barW/2}" y="${v>=0?by-6:by+barH+16}" font-size="10" fill="var(--text)" text-anchor="middle" font-weight="600">${v.toFixed(2)}</text>`;
+    });
+    svg += `<text x="${gx+groupW/2}" y="${H-10}" font-size="12" fill="var(--text-dim)" text-anchor="middle">${escapeHtml(t)}</text>`;
   });
   svg += `</svg>`;
   wrap.innerHTML = svg;
@@ -3437,47 +3502,60 @@ function renderEPByType() {
 function renderEPCumulative() {
   const wrap = document.getElementById('epCumulativeWrap');
   if (!wrap) return;
-  const off = (teamPlays[epTeam] || []).filter(p => p.off).slice();
-  if (!off.length) {
+  // Average EPA/play, computed separately per week (not a running total) so the comparison
+  // stays fair when the two sides have played a different number of games or total plays
+  // (this matters a lot for conference-vs-conference, where play counts can differ widely).
+  function weeklyAverage(entity) {
+    const off = getEntityPlays(entity).filter(p => p.off);
+    const sumByWeek = {}, countByWeek = {};
+    off.forEach(p => {
+      sumByWeek[p.wk] = (sumByWeek[p.wk] || 0) + p.ppa;
+      countByWeek[p.wk] = (countByWeek[p.wk] || 0) + 1;
+    });
+    const weeks = Object.keys(sumByWeek).map(Number).sort((a, b) => a - b);
+    return weeks.map(wk => ({ wk, avg: sumByWeek[wk] / countByWeek[wk], n: countByWeek[wk] }));
+  }
+
+  const seriesA = weeklyAverage(epEntityA);
+  const seriesB = weeklyAverage(epEntityB);
+  if (!seriesA.length && !seriesB.length) {
     wrap.innerHTML = `<div style="padding:30px; text-align:center; color:var(--text-dim); font-size:14px;">No offensive plays recorded yet.</div>`;
     return;
   }
 
-  let cum = 0;
-  const points = off.map((p, i) => { cum += p.ppa; return { i, wk: p.wk, cum }; });
-
-  const W = 960, H = 360, M = { l: 60, r: 30, t: 20, b: 40 };
-  const maxVal = Math.max(1, ...points.map(p => p.cum));
-  const minVal = Math.min(0, ...points.map(p => p.cum));
-  const px = i => M.l + (i/(points.length-1||1)) * (W-M.l-M.r);
-  const py = v => H - M.b - ((v-minVal)/(maxVal-minVal||1)) * (H-M.t-M.b);
+  const allWeeks = [...new Set([...seriesA.map(p => p.wk), ...seriesB.map(p => p.wk)])].sort((a, b) => a - b);
+  const W = 960, H = 360, M = { l: 60, r: 30, t: 30, b: 40 };
+  const allVals = [...seriesA.map(p => p.avg), ...seriesB.map(p => p.avg), 0];
+  const maxVal = Math.max(0.3, ...allVals);
+  const minVal = Math.min(0, ...allVals);
+  const px = wk => allWeeks.length > 1
+    ? M.l + (allWeeks.indexOf(wk) / (allWeeks.length - 1)) * (W - M.l - M.r)
+    : (M.l + W - M.r) / 2;
+  const py = v => H - M.b - ((v - minVal) / (maxVal - minVal || 1)) * (H - M.t - M.b);
 
   let svg = svgOpen(W, H);
   svg += `<line x1="${M.l}" y1="${py(0)}" x2="${W-M.r}" y2="${py(0)}" stroke="var(--line)" stroke-width="1"/>`;
-  for (let i=0;i<=4;i++) {
-    const v = minVal + i*(maxVal-minVal)/4;
-    svg += `<text x="${M.l-10}" y="${py(v)+4}" font-size="11" fill="var(--text-dim)" text-anchor="end">${v.toFixed(0)}</text>`;
+  for (let i = 0; i <= 4; i++) {
+    const v = minVal + i * (maxVal - minVal) / 4;
+    svg += `<text x="${M.l-10}" y="${py(v)+4}" font-size="11" fill="var(--text-dim)" text-anchor="end">${v.toFixed(2)}</text>`;
   }
-
-  // shade week boundaries
-  const weekBounds = [];
-  let lastWk = null;
-  points.forEach((p, i) => { if (p.wk !== lastWk) { weekBounds.push(i); lastWk = p.wk; } });
-  weekBounds.forEach((startI, idx) => {
-    const endI = weekBounds[idx+1] !== undefined ? weekBounds[idx+1] : points.length-1;
-    const midI = Math.floor((startI+endI)/2);
-    svg += `<text x="${px(midI)}" y="16" font-size="11" fill="var(--text-dim)" text-anchor="middle">Wk ${points[startI].wk}</text>`;
-    if (idx > 0) svg += `<line x1="${px(startI)}" y1="${M.t}" x2="${px(startI)}" y2="${H-M.b}" stroke="var(--line)" stroke-width="1" stroke-dasharray="3,3"/>`;
+  allWeeks.forEach(wk => {
+    svg += `<text x="${px(wk)}" y="${H-14}" font-size="11" fill="var(--text-dim)" text-anchor="middle">Wk ${wk}</text>`;
+    svg += `<line x1="${px(wk)}" y1="${M.t}" x2="${px(wk)}" y2="${H-M.b}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,4"/>`;
   });
 
-  const pathPts = points.map(p => `${px(p.i)},${py(p.cum)}`).join(' ');
-  svg += `<polyline points="${pathPts}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`;
-  points.forEach((p, i) => {
-    if (i % Math.max(1, Math.floor(points.length/40)) === 0 || i === points.length-1) {
-      svg += `<circle cx="${px(p.i)}" cy="${py(p.cum)}" r="3.5" fill="var(--accent)" data-tip="Play ${i+1} (Wk ${p.wk})\nCumulative EPA: ${p.cum.toFixed(1)}" style="cursor:pointer;"/>`;
-    }
+  svg += `<circle cx="${M.l}" cy="12" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="16" font-size="11" fill="var(--text)">${escapeHtml(epEntityA)}</text>`;
+  svg += `<circle cx="${M.l+150}" cy="12" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="16" font-size="11" fill="var(--text)">${escapeHtml(epEntityB)}</text>`;
+
+  [[seriesA, 'var(--accent)', epEntityA], [seriesB, 'var(--accent2)', epEntityB]].forEach(([series, color, name]) => {
+    if (!series.length) return;
+    const pathPts = series.map(p => `${px(p.wk)},${py(p.avg)}`).join(' ');
+    svg += `<polyline points="${pathPts}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
+    series.forEach(p => {
+      svg += `<circle cx="${px(p.wk)}" cy="${py(p.avg)}" r="4" fill="${color}" data-tip="${escapeHtml(name)}\nWeek ${p.wk}\nEPA/Play: ${p.avg.toFixed(2)}\nPlays: ${p.n}" style="cursor:pointer;"/>`;
+    });
   });
-  svg += `<text x="16" y="${(M.t+H-M.b)/2}" font-size="12" fill="var(--text-dim)" text-anchor="middle" transform="rotate(-90 16 ${(M.t+H-M.b)/2})">Cumulative EPA</text>`;
+  svg += `<text x="16" y="${(M.t+H-M.b)/2}" font-size="12" fill="var(--text-dim)" text-anchor="middle" transform="rotate(-90 16 ${(M.t+H-M.b)/2})">EPA / Play</text>`;
   svg += `</svg>`;
   wrap.innerHTML = svg;
 }
@@ -3485,65 +3563,88 @@ function renderEPCumulative() {
 function renderEPRedZone() {
   const wrap = document.getElementById('epRedZoneWrap');
   if (!wrap) return;
-  const off = (teamPlays[epTeam] || []).filter(p => p.off && p.ytg != null && p.ytg <= 20);
-  const tds = off.filter(p => p.scoring);
-  const tdRate = off.length ? (tds.length/off.length*100) : 0;
+  function stats(entity) {
+    const off = getEntityPlays(entity).filter(p => p.off && p.ytg != null && p.ytg <= 20);
+    const tds = off.filter(p => p.scoring);
+    return { plays: off.length, tds: tds.length, rate: off.length ? (tds.length / off.length * 100) : 0 };
+  }
+  const a = stats(epEntityA), b = stats(epEntityB);
+
+  const rows = [
+    { label: 'Red Zone Plays', va: a.plays, vb: b.plays, fmt: v => String(v), higherBetter: null,
+      tip: "RED ZONE PLAYS\n\nCount of offensive plays run from inside the opponent's 20-yard line, across all completed games this season." },
+    { label: 'Red Zone Touchdowns', va: a.tds, vb: b.tds, fmt: v => String(v), higherBetter: true,
+      tip: "RED ZONE TOUCHDOWNS\n\nOf the red zone plays above, how many resulted in a touchdown." },
+    { label: 'TD Rate / Red Zone Play', va: a.rate, vb: b.rate, fmt: v => v.toFixed(1) + '%', higherBetter: true,
+      tip: "TD RATE / RED ZONE PLAY\n\nFormula: Red Zone Touchdowns \u00f7 Red Zone Plays\n\nMeasured per play, not per possession \u2014 not directly comparable to a traditional 'red zone trip conversion rate.'" }
+  ];
 
   wrap.innerHTML = `
-    <div class="ep-3col-grid">
-      <div class="leader-card ep-metric-card" data-tip="RED ZONE PLAYS&#10;&#10;Count of offensive plays run from inside the opponent's 20-yard line, across all completed games this season.">
-        <div class="leader-title">Red Zone Plays</div>
-        <div class="leader-row leader-row-first"><span class="leader-value" style="font-size:22px;">${off.length}</span></div>
-      </div>
-      <div class="leader-card ep-metric-card" data-tip="RED ZONE TOUCHDOWNS&#10;&#10;Of the red zone plays above, how many resulted in a touchdown.">
-        <div class="leader-title">Red Zone Touchdowns</div>
-        <div class="leader-row leader-row-first"><span class="leader-value good" style="font-size:22px;">${tds.length}</span></div>
-      </div>
-      <div class="leader-card ep-metric-card" data-tip="TD RATE / RED ZONE PLAY&#10;&#10;Formula: Red Zone Touchdowns \u00f7 Red Zone Plays&#10;&#10;Measured per play, not per possession &#8212; not directly comparable to a traditional 'red zone trip conversion rate.'">
-        <div class="leader-title">TD Rate / Red Zone Play</div>
-        <div class="leader-row leader-row-first"><span class="leader-value" style="font-size:22px;">${tdRate.toFixed(1)}%</span></div>
-      </div>
-    </div>
+    <table>
+      <thead><tr><th class="left">${escapeHtml(epEntityA)}</th><th></th><th class="left">${escapeHtml(epEntityB)}</th></tr></thead>
+      <tbody>
+        ${rows.map(r => {
+          const aBetter = r.higherBetter !== null && (r.higherBetter ? r.va > r.vb : r.va < r.vb);
+          const bBetter = r.higherBetter !== null && (r.higherBetter ? r.vb > r.va : r.vb < r.va);
+          return `
+          <tr>
+            <td class="mono" style="${aBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.va)}</td>
+            <td class="left" data-tip="${escapeHtml(r.tip)}" style="cursor:help; color:var(--text-dim); font-size:13px;">${escapeHtml(r.label)}</td>
+            <td class="mono" style="${bBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.vb)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
   `;
 }
 
 function renderEPExplosive() {
   const wrap = document.getElementById('epExplosiveWrap');
   if (!wrap) return;
-  const off = (teamPlays[epTeam] || []).filter(p => p.off).slice().sort((a,b) => b.ppa - a.ppa).slice(0, 10);
 
-  if (!off.length) {
-    wrap.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:14px;">No plays recorded yet.</div>`;
-    return;
+  function tableFor(entity) {
+    const off = getEntityPlays(entity).filter(p => p.off).slice().sort((a, b) => b.ppa - a.ppa).slice(0, 10);
+    if (!off.length) {
+      return `<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:14px;">No plays recorded yet.</div>`;
+    }
+    // In conference mode, plays are pooled across every team, so show which team made each play.
+    const showTeam = epMode === 'conference';
+    return `
+      <table>
+        <thead>
+          <tr>
+            <th class="rank-num">#</th>
+            ${showTeam ? '<th class="left">Team</th>' : ''}
+            <th class="left">Week</th>
+            <th class="left">Opponent</th>
+            <th class="left" data-tip="DOWN &amp; DISTANCE&#10;&#10;The down and yards-to-go at the start of this play &#8212; the situation EPA is measured against.">Down &amp; Distance</th>
+            <th data-tip="YARDS GAINED&#10;&#10;Total yards gained on this specific play.">Yards</th>
+            <th data-tip="EPA (EXPECTED POINTS ADDED)&#10;&#10;Formula: EPA = EP(after play) &#8722; EP(before play)&#10;&#10;How many points more than expected this specific play was worth, given the down, distance, and field position before the snap.">EPA</th>
+            <th class="left">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${off.map((p, i) => `
+            <tr>
+              <td class="rank-num">${i+1}</td>
+              ${showTeam ? `<td class="left">${escapeHtml(p.team || '')}</td>` : ''}
+              <td class="left">${p.wk}</td>
+              <td class="left">${escapeHtml(p.opp)}</td>
+              <td class="left mono">${p.down > 0 ? `${p.down} &amp; ${p.dist}` : '&#8212;'}</td>
+              <td class="mono">${p.yds}</td>
+              <td class="mono good" style="font-weight:600;">+${p.ppa.toFixed(2)}</td>
+              <td class="left" style="font-size:12px; color:var(--text-dim);">${escapeHtml(p.text)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
   }
 
   wrap.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th class="rank-num">#</th>
-          <th class="left">Week</th>
-          <th class="left">Opponent</th>
-          <th class="left" data-tip="DOWN &amp; DISTANCE&#10;&#10;The down and yards-to-go at the start of this play &#8212; the situation EPA is measured against.">Down &amp; Distance</th>
-          <th data-tip="YARDS GAINED&#10;&#10;Total yards gained on this specific play.">Yards</th>
-          <th data-tip="EPA (EXPECTED POINTS ADDED)&#10;&#10;Formula: EPA = EP(after play) &#8722; EP(before play)&#10;&#10;How many points more than expected this specific play was worth, given the down, distance, and field position before the snap.">EPA</th>
-          <th class="left">Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${off.map((p, i) => `
-          <tr>
-            <td class="rank-num">${i+1}</td>
-            <td class="left">${p.wk}</td>
-            <td class="left">${escapeHtml(p.opp)}</td>
-            <td class="left mono">${p.down > 0 ? `${p.down} &amp; ${p.dist}` : '&#8212;'}</td>
-            <td class="mono">${p.yds}</td>
-            <td class="mono good" style="font-weight:600;">+${p.ppa.toFixed(2)}</td>
-            <td class="left" style="font-size:12px; color:var(--text-dim);">${escapeHtml(p.text)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
+    <div class="card-sub" style="margin-bottom:6px; font-weight:600; color:var(--text);">${escapeHtml(epEntityA)}</div>
+    <div class="table-scroll" style="max-height:none; overflow-x:auto; overflow-y:visible; margin-bottom:22px;">${tableFor(epEntityA)}</div>
+    <div class="card-sub" style="margin-bottom:6px; font-weight:600; color:var(--text);">${escapeHtml(epEntityB)}</div>
+    <div class="table-scroll" style="max-height:none; overflow-x:auto; overflow-y:visible;">${tableFor(epEntityB)}</div>
   `;
 }
 
