@@ -1063,7 +1063,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
   <div class="card">
     <div class="card-label">EPA Summary</div>
     <div class="card-sub" style="margin-bottom:6px;">Expected Points Added per play, based on down, distance, and field position at the time of the play.</div>
-    <div id="epSummaryWrap" class="ep-3col-grid"></div>
+    <div id="epSummaryWrap"></div>
   </div>
 
   <div class="card ep-chart-card" data-tip="EPA BY DOWN&#10;&#10;Average offensive EPA per play, split out by down.&#10;&#10;Formula: EPA = EP(after play) &#8722; EP(before play), averaged for all plays on that down.&#10;&#10;Shows whether efficiency holds up on later downs, when the defense typically has the advantage.">
@@ -3438,9 +3438,17 @@ function renderEPByDown() {
   const avgFor = (arr, d) => { const p = arr.filter(x => x.down === d); return p.length ? p.reduce((s,x)=>s+x.ppa,0)/p.length : 0; };
   const valsA = downs.map(d => avgFor(offA, d));
   const valsB = downs.map(d => avgFor(offB, d));
-  const maxAbs = Math.max(0.3, ...valsA.map(Math.abs), ...valsB.map(Math.abs));
-  const zeroY = M.t + (H-M.t-M.b)/2;
-  const scale = ((H-M.t-M.b)/2) / (maxAbs*1.2);
+  // Place the zero-line proportionally to how much of the range is positive vs. negative,
+  // rather than always dead-center: when every value is positive (the common case), the
+  // zero-line sits at the bottom of the plot area so bars use the full height instead of
+  // leaving half the chart empty below them.
+  const allVals = [...valsA, ...valsB];
+  const maxPos = Math.max(0.05, ...allVals.map(v => Math.max(0, v)));
+  const maxNeg = Math.max(0, ...allVals.map(v => Math.max(0, -v)));
+  const totalRange = maxPos + maxNeg;
+  const plotH = H - M.t - M.b;
+  const zeroY = M.t + plotH * (maxPos / totalRange);
+  const scale = plotH / (totalRange * 1.2);
   const groupW = (W-M.l-M.r) / downs.length;
   const barW = groupW/2 - 12;
 
@@ -3476,9 +3484,15 @@ function renderEPByType() {
   const types = ['Rushing', 'Passing'];
   const valsA = [avg(rushA), avg(passA)], nA = [rushA.length, passA.length];
   const valsB = [avg(rushB), avg(passB)], nB = [rushB.length, passB.length];
-  const maxAbs = Math.max(0.3, ...valsA.map(Math.abs), ...valsB.map(Math.abs));
-  const zeroY = M.t + (H-M.t-M.b)/2;
-  const scale = ((H-M.t-M.b)/2) / (maxAbs*1.2);
+  // Same proportional zero-line placement as the EPA-by-Down chart: avoids reserving a full
+  // empty half of the plot area when every value happens to be positive.
+  const allVals = [...valsA, ...valsB];
+  const maxPos = Math.max(0.05, ...allVals.map(v => Math.max(0, v)));
+  const maxNeg = Math.max(0, ...allVals.map(v => Math.max(0, -v)));
+  const totalRange = maxPos + maxNeg;
+  const plotH = H - M.t - M.b;
+  const zeroY = M.t + plotH * (maxPos / totalRange);
+  const scale = plotH / (totalRange * 1.2);
   const groupW = (W-M.l-M.r) / types.length;
   const barW = groupW/2 - 16;
 
