@@ -24,6 +24,19 @@
 
 * { box-sizing: border-box; }
 
+/* Masks the brief moment between the static HTML skeleton painting (empty tables, empty
+   dropdowns) and the inline script finishing its parse of the embedded dataset and running
+   every render function. Without this, that unpopulated skeleton can flash on screen first. */
+#loadingOverlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -792,6 +805,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
 </style>
 </head>
 <body>
+<div id="loadingOverlay">Loading dashboard&hellip;</div>
 <div class="wrap">
 
   <header>
@@ -1219,13 +1233,6 @@ const TEAM_ABBR = {
   'Utah': 'UTAH',
   'West Virginia': 'WVU'
 };
-function teamAbbr(name) { return TEAM_ABBR[name] || name.slice(0,3).toUpperCase(); }
-function badgeTextColor(hex) {
-  // choose black or white text based on background luminance for contrast
-  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
-  return lum > 0.6 ? '#0a1930' : '#ffffff';
-}
 
 function tintColor(hex, whiteMix) {
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
@@ -2093,23 +2100,11 @@ function renderReceivingLeaders() {
 
 let state = { search: '', sortKey: 'net', sortDir: 'desc', selectedTeam: null, selectedGameId: null, chartTeam: 'mine', selectedBarDrive: null };
 let playerSearchQuery = '';
-const BIG12_TEAMS = teamStats.filter(r => ACTIVE_ROSTER.includes(r.t));
 
 function fmt(n, d = 3) { return (n === null || n === undefined || Number.isNaN(n)) ? '—' : n.toFixed(d); }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function epColor(ep) {
-  if (ep === null || ep === undefined) return '#1a2b24';
-  const t = (Math.max(-2, Math.min(7, ep)) + 2) / 9;
-  const stops = [[0,[177,74,63]],[0.28,[150,90,72]],[0.5,[62,62,58]],[0.72,[75,120,100]],[1,[65,170,120]]];
-  let a = stops[0], b = stops[stops.length-1];
-  for (let i=0;i<stops.length-1;i++){ if (t>=stops[i][0] && t<=stops[i+1][0]){ a=stops[i]; b=stops[i+1]; break; } }
-  const lt = (t - a[0]) / ((b[0]-a[0]) || 1);
-  const rgb = a[1].map((c,i) => Math.round(c + (b[1][i]-c)*lt));
-  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-}
 
-function teamIndex(name) { return teams.indexOf(name); }
 
 function ordinal(n) {
   if (n === 1) return '1st';
@@ -2119,62 +2114,9 @@ function ordinal(n) {
   return `${n}th`;
 }
 
-function fieldPosLabel(yardLine) {
-  if (yardLine <= 50) return `Opp ${yardLine}`;
-  return `Own ${100 - yardLine}`;
-}
 
-function describeDriveResult(lastPlay) {
-  // lastPlay: [gameId, offIdx, defIdx, driveId, playNum, down, yardLine, playType, flag, epBefore, epAfter, epa]
-  const outcomeVal = lastPlay[10];
-  if (Math.abs(outcomeVal - 7) < 0.01) return { label: 'Touchdown', cls: 'good' };
-  if (Math.abs(outcomeVal - 3) < 0.01) return { label: 'Field goal', cls: 'good' };
-  if (Math.abs(outcomeVal + 2) < 0.01) return { label: 'Safety (opponent)', cls: 'bad' };
-  const flag = flagMap[String(lastPlay[8])];
-  if (flag === 'turnover_on_downs') return { label: 'Turnover on downs', cls: 'bad' };
-  const pt = lastPlay[7];
-  if (pt === 'Punt') return { label: 'Punt', cls: '' };
-  if (pt === 'Interception') return { label: 'Interception', cls: 'bad' };
-  if (pt.indexOf('Fumble Recovery (Opponent)') !== -1) return { label: 'Fumble lost', cls: 'bad' };
-  if (pt === 'Field Goal Missed') return { label: 'Field goal missed', cls: 'bad' };
-  if (pt === 'Blocked Field Goal') return { label: 'Field goal blocked', cls: 'bad' };
-  // No scoring play, turnover, or punt matched the last play — likely a drive that ran out the
-  // clock (kneel-downs were stripped out during data cleaning) or is missing its final play.
-  return { label: 'Drive ended (no score)', cls: '' };
-}
 
-function renderPlayRowsHtml(driveObj) {
-  return driveObj.plays.map((p, i) => {
-    const next = driveObj.plays[i + 1];
-    const fromLabel = `${ordinal(p[5])} down, ${fieldPosLabel(p[6])}`;
-    const toLabel = next ? `${ordinal(next[5])} down, ${fieldPosLabel(next[6])}` : driveObj.result.label;
-    const epBefore = p[9], epAfter = p[10];
-    const transition = `${fromLabel} &#8594; ${toLabel} &#8212; EP ${fmt(epBefore,2)} &#8594; ${fmt(epAfter,2)}`;
-    const flagNote = FLAG_LABEL[flagMap[String(p[8])]] || '';
-    const playText = p[12] || '';
-    return `
-      <tr>
-        <td>${p[5]}</td>
-        <td class="left mono">${fieldPosLabel(p[6])}</td>
-        <td class="left" style="color:var(--text);">${escapeHtml(p[7])}</td>
-        <td class="mono ${(p[11]||0)>=0?'good':'bad'}">${fmt(p[11])}</td>
-        <td class="left" style="color:var(--text-dim); font-size:11px; max-width:320px;">${escapeHtml(playText)}</td>
-        <td class="left" style="color:var(--text-dim); font-size:11px;">${flagNote ? escapeHtml(flagNote) + ' &#183; ' : ''}${transition}</td>
-      </tr>
-    `;
-  }).join('');
-}
 
-function renderPlaysTableHtml(driveObj) {
-  return `
-    <table style="width:100%;">
-      <thead>
-        <tr style="background:var(--surface);"><th>Down</th><th class="left">Starting Field Position</th><th class="left">Play type</th><th>EPA</th><th class="left">Play Context</th><th class="left">Note</th></tr>
-      </thead>
-      <tbody>${renderPlayRowsHtml(driveObj)}</tbody>
-    </table>
-  `;
-}
 
 const CONFERENCE_ORDER = ['All Conferences', 'ACC', 'Big 12', 'Big Ten', 'Mountain West', 'Pac-12', 'SEC'];
 
@@ -2257,13 +2199,6 @@ function svgOpen(w, h, extra) {
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="min-width:${w}px; display:block; margin:0 auto; font-family:'JetBrains Mono',monospace;" ${extra||''}>`;
 }
 
-function niceMax(v) {
-  if (v <= 0) return 10;
-  const mag = Math.pow(10, Math.floor(Math.log10(v)));
-  const n = v / mag;
-  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
-  return step * mag;
-}
 
 const RADAR_AXES = [
   { label: 'Points', field: 'points' },
@@ -2671,383 +2606,20 @@ const LAST_UPDATE_DATE = 'September 27, 2026';
 document.getElementById('standingsUpdatedText').textContent =
   `Updated as of ${LAST_UPDATE_DATE}`;
 
-function getFilteredTeams() {
-  let rows = BIG12_TEAMS.slice();
-  if (state.search.trim()) {
-    const q = state.search.trim().toLowerCase();
-    rows = rows.filter(r => r.t.toLowerCase().includes(q));
-  }
-  rows.sort((a, b) => {
-    const av = a[state.sortKey], bv = b[state.sortKey];
-    if (av === null) return 1;
-    if (bv === null) return -1;
-    return state.sortDir === 'desc' ? bv - av : av - bv;
-  });
-  return rows;
-}
 
-function renderLeaderboard() {
-  const rows = getFilteredTeams();
-  const body = document.getElementById('leaderboardBody');
-  body.innerHTML = rows.map((row, i) => `
-    <tr class="team-row ${state.selectedTeam === row.t ? 'selected' : ''}" data-team="${escapeHtml(row.t)}">
-      <td class="rank-num">${i+1}</td>
-      <td class="left" style="font-weight:500;">${escapeHtml(row.t)}</td>
-      <td class="mono ${row.offEpa > 0 ? 'good' : 'bad'}">${fmt(row.offEpa)}</td>
-      <td class="mono ${row.defEpa < 0 ? 'good' : 'bad'}">${fmt(row.defEpa)}</td>
-      <td class="mono ${row.net > 0 ? 'good' : 'bad'}" style="font-weight:600;">${fmt(row.net)}</td>
-      <td class="mono" style="color:var(--text-dim);">${row.offN}</td>
-    </tr>
-  `).join('');
-  body.querySelectorAll('tr.team-row').forEach(tr => {
-    tr.addEventListener('click', () => selectTeam(tr.dataset.team === state.selectedTeam ? null : tr.dataset.team));
-  });
-}
 
-document.querySelectorAll('th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.sort;
-    if (state.sortKey === key) state.sortDir = state.sortDir === 'desc' ? 'asc' : 'desc';
-    else { state.sortKey = key; state.sortDir = 'desc'; }
-    renderLeaderboard();
-  });
-});
 
-const searchInputEl = document.getElementById('searchInput');
-if (searchInputEl) searchInputEl.addEventListener('input', e => { state.search = e.target.value; renderLeaderboard(); });
-const clearBtnEl = document.getElementById('clearBtn');
-if (clearBtnEl) clearBtnEl.addEventListener('click', () => selectTeam(null));
 
-/* ---------- Scatter ---------- */
-function renderScatter() {
-  const data = BIG12_TEAMS.filter(r => r.offEpa !== null && r.defEpa !== null)
-    .map(r => ({ x: r.offEpa, y: -r.defEpa, team: r.t, home: r.home, net: r.net, offEpa: r.offEpa, defEpa: r.defEpa }));
-  const avgX = data.reduce((s,d)=>s+d.x,0)/data.length;
-  const avgY = data.reduce((s,d)=>s+d.y,0)/data.length;
 
-  const W = 620, H = 460, pad = 46;
-  const xs = data.map(d=>d.x), ys = data.map(d=>d.y);
-  const xMin = Math.min(...xs, avgX) - 0.1, xMax = Math.max(...xs, avgX) + 0.1;
-  const yMin = Math.min(...ys, avgY) - 0.1, yMax = Math.max(...ys, avgY) + 0.1;
-  const sx = x => pad + ((x - xMin) / (xMax - xMin)) * (W - 2*pad);
-  const sy = y => H - pad - ((y - yMin) / (yMax - yMin)) * (H - 2*pad);
 
-  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px; display:block; margin:0 auto;">`;
-  svg += `<defs>
-    <linearGradient id="quadGrad" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0%" stop-color="#c0392b" stop-opacity="0.12" />
-      <stop offset="50%" stop-color="#e8c547" stop-opacity="0.07" />
-      <stop offset="100%" stop-color="#1f8a4c" stop-opacity="0.15" />
-    </linearGradient>
-  </defs>`;
-  svg += `<rect x="${pad}" y="${pad}" width="${W-2*pad}" height="${H-2*pad}" fill="url(#quadGrad)" />`;
-  svg += `<line x1="${sx(avgX)}" y1="${pad}" x2="${sx(avgX)}" y2="${H-pad}" stroke="#c3cede" stroke-dasharray="3 3" />`;
-  svg += `<line x1="${pad}" y1="${sy(avgY)}" x2="${W-pad}" y2="${sy(avgY)}" stroke="#c3cede" stroke-dasharray="3 3" />`;
-  svg += `<line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="#8493ac" />`;
-  svg += `<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${H-pad}" stroke="#8493ac" />`;
-  svg += `<text x="${W/2}" y="${H-6}" text-anchor="middle" font-size="14" fill="#56657d" font-family="'JetBrains Mono', monospace">offensive epa/play</text>`;
-  svg += `<text x="10" y="${H/2}" text-anchor="middle" font-size="14" fill="#56657d" font-family="'JetBrains Mono', monospace" transform="rotate(-90 10 ${H/2})">defensive epa suppressed</text>`;
 
-  const quadrants = [
-    { label: 'ELITE', x: W-pad-8, y: pad+18, anchor: 'end', color: '#1f8a4c',
-      desc: 'Above-average offense and above-average defense \u2014 the complete package, strong on both sides of the ball.' },
-    { label: 'DEFENSE-LED', x: pad+8, y: pad+18, anchor: 'start', color: '#4a7fd6',
-      desc: 'Below-average offense but above-average defense \u2014 wins by keeping opponents off the board, not by scoring a lot.' },
-    { label: 'OFFENSE-LED', x: W-pad-8, y: H-pad-10, anchor: 'end', color: '#c98a2b',
-      desc: 'Above-average offense but below-average defense \u2014 wins shootouts, vulnerable when the offense has an off day.' },
-    { label: 'REBUILDING', x: pad+8, y: H-pad-10, anchor: 'start', color: '#b5453a',
-      desc: 'Below-average offense and below-average defense relative to the rest of the Big 12 so far this season.' }
-  ];
-  quadrants.forEach(q => {
-    const w = q.label.length * 6.4 + 12;
-    const rx = q.anchor === 'end' ? q.x - w + 6 : q.x - 6;
-    svg += `<rect x="${rx}" y="${q.y-13}" width="${w}" height="18" fill="transparent" class="quad-hit" data-tip="${escapeHtml(q.label + '\n' + q.desc)}" />`;
-    svg += `<text x="${q.x}" y="${q.y}" text-anchor="${q.anchor}" font-size="14.5" font-weight="600" letter-spacing="0.04em" fill="${q.color}" font-family="'JetBrains Mono', monospace" style="pointer-events:none; text-decoration: underline; text-decoration-style: dashed; text-decoration-color: ${q.color}99;">${q.label}</text>`;
-  });
 
-  data.forEach(d => {
-    const isSel = d.team === state.selectedTeam;
-    const fill = teamColor(d.team);
-    const textColor = badgeTextColor(fill);
-    const stroke = isSel ? '#0a1930' : '#ffffff';
-    const strokeWidth = isSel ? 2.5 : 1.5;
-    const r = isSel ? 19 : 16;
-    const abbr = teamAbbr(d.team);
-    const fontSize = abbr.length >= 4 ? 8 : 9.5;
-    svg += `<g class="scatter-pt" data-team="${escapeHtml(d.team)}" data-net="${fmt(d.net, 2)}" data-off="${fmt(d.offEpa,3)}" data-def="${fmt(d.defEpa,3)}">
-      <rect x="${sx(d.x)-r}" y="${sy(d.y)-r}" width="${r*2}" height="${r*2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />
-      <text x="${sx(d.x)}" y="${sy(d.y)}" text-anchor="middle" dy="3.2" font-size="${fontSize}" font-weight="700" letter-spacing="0.01em" fill="${textColor}" font-family="'JetBrains Mono', monospace" style="pointer-events:none;">${abbr}</text>
-    </g>`;
-  });
-  svg += `</svg>`;
-  document.getElementById('scatterWrap').innerHTML = svg;
 
-  const tip = document.getElementById('scatterTip');
-  document.querySelectorAll('.scatter-pt').forEach(pt => {
-    pt.addEventListener('mousemove', e => {
-      tip.style.display = 'block';
-      tip.style.left = (e.clientX + 14) + 'px';
-      tip.style.top = (e.clientY - 56) + 'px';
-      const net = parseFloat(pt.dataset.net);
-      const off = parseFloat(pt.dataset.off);
-      const def = parseFloat(pt.dataset.def);
-      const sgn = v => v > 0 ? '+' : '';
-      tip.innerHTML = `
-        <div style="font-weight:600;color:var(--text);margin-bottom:4px;">${escapeHtml(pt.dataset.team)}</div>
-        <div style="color:var(--text-dim);">Net: <b style="color:var(--text);">${sgn(net)}${pt.dataset.net}</b></div>
-        <div style="color:var(--text-dim);">Offense: <b style="color:var(--text);">${sgn(off)}${pt.dataset.off}</b></div>
-        <div style="color:var(--text-dim);">Defense: <b style="color:var(--text);">${sgn(def)}${pt.dataset.def}</b></div>
-      `;
-    });
-    pt.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-    pt.addEventListener('click', () => selectTeam(pt.dataset.team === state.selectedTeam ? null : pt.dataset.team));
-  });
-}
 
-/* ---------- Week-over-week trend ---------- */
-function renderTrend() {
-  const weeks = Array.from(new Set(weekly.map(w => w.week))).sort((a,b) => a - b);
-  const W = 1180, H = 460, padL = 50, padR = 30, padT = 20, padB = 40;
 
-  const byTeam = {};
-  ACTIVE_ROSTER.forEach(t => { byTeam[t] = weekly.filter(w => w.team === t && w.net !== null).sort((a,b) => a.week - b.week); });
 
-  const allNets = weekly.filter(w => w.net !== null).map(w => w.net);
-  const yMin = Math.min(...allNets, 0) - 0.1;
-  const yMax = Math.max(...allNets, 0) + 0.1;
 
-  const sx = wk => weeks.length > 1 ? padL + ((wk - weeks[0]) / (weeks[weeks.length-1] - weeks[0])) * (W - padL - padR) : padL + (W - padL - padR) / 2;
-  const sy = v => H - padB - ((v - yMin) / (yMax - yMin)) * (H - padT - padB);
 
-  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">`;
-  svg += `<line x1="${padL}" y1="${sy(0)}" x2="${W-padR}" y2="${sy(0)}" stroke="#c3cede" stroke-dasharray="3 3" />`;
-  svg += `<line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#8493ac" />`;
-  svg += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="#8493ac" />`;
-  weeks.forEach(wk => {
-    svg += `<text x="${sx(wk)}" y="${H-padB+18}" text-anchor="middle" font-size="15" fill="#56657d" font-family="'JetBrains Mono', monospace">wk ${wk}</text>`;
-  });
-  svg += `<text x="${padL-10}" y="${sy(0)}" text-anchor="end" font-size="14" fill="#56657d" font-family="'JetBrains Mono', monospace" dy="4">0</text>`;
-
-  ACTIVE_ROSTER.forEach(team => {
-    const pts = byTeam[team];
-    if (!pts.length) return;
-    const color = teamColor(team);
-    if (pts.length > 1) {
-      const path = pts.map((p,i) => `${i===0?'M':'L'} ${sx(p.week)} ${sy(p.net)}`).join(' ');
-      svg += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" opacity="0.9" />`;
-    }
-    pts.forEach(p => {
-      svg += `<rect class="trend-pt" data-team="${escapeHtml(team)}" data-week="${p.week}" data-net="${fmt(p.net,2)}" data-off="${fmt(p.offEpa,3)}" data-def="${fmt(p.defEpa,3)}" x="${sx(p.week)-7}" y="${sy(p.net)-7}" width="14" height="14" fill="${color}" stroke="#fff" stroke-width="1.5" />`;
-    });
-  });
-
-  svg += `</svg>`;
-  document.getElementById('trendWrap').innerHTML = svg;
-
-  const tip = document.getElementById('trendTip');
-  document.querySelectorAll('.trend-pt').forEach(pt => {
-    pt.addEventListener('mousemove', e => {
-      tip.style.display = 'block';
-      tip.style.left = (e.clientX + 14) + 'px';
-      tip.style.top = (e.clientY - 56) + 'px';
-      tip.innerHTML = `
-        <div style="font-weight:600;color:var(--text);margin-bottom:4px;">${escapeHtml(pt.dataset.team)} &#183; week ${pt.dataset.week}</div>
-        <div style="color:var(--text-dim);">Net: <b style="color:var(--text);">${pt.dataset.net}</b></div>
-        <div style="color:var(--text-dim);">Offense: <b style="color:var(--text);">${pt.dataset.off}</b></div>
-        <div style="color:var(--text-dim);">Defense: <b style="color:var(--text);">${pt.dataset.def}</b></div>
-      `;
-    });
-    pt.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-    pt.addEventListener('click', () => selectTeam(pt.dataset.team === state.selectedTeam ? null : pt.dataset.team));
-  });
-}
-
-/* ---------- Heatmap ---------- */
-/* ---------- Down-by-down success rate ---------- */
-function successColor(rate) {
-  if (rate === null || rate === undefined) return '#1a2b24';
-  const t = Math.max(0, Math.min(1, (rate - 0.2) / 0.6)); // 20%-80% range for contrast
-  const stops = [[240,244,240],[110,196,138],[20,120,70]];
-  let a, b, lt;
-  if (t < 0.5) { a = stops[0]; b = stops[1]; lt = t / 0.5; }
-  else { a = stops[1]; b = stops[2]; lt = (t - 0.5) / 0.5; }
-  const rgb = a.map((c,i) => Math.round(c + (b[i]-c)*lt));
-  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-}
-
-function renderSuccessTable() {
-  const rows = BIG12_TEAMS.slice().sort((a,b) => (b.successByDown.overall.rate||0) - (a.successByDown.overall.rate||0));
-  let html = '<thead><tr><th class="left" style="padding:6px 10px;">Team</th>' +
-    ['1st','2nd','3rd','4th','Overall'].map(l => `<th style="padding:6px 8px;">${l}</th>`).join('') + '</tr></thead><tbody>';
-  rows.forEach(team => {
-    const sbd = team.successByDown;
-    html += `<tr><td class="left" style="padding:6px 10px; font-weight:500;">${escapeHtml(team.t)}</td>`;
-    ['1','2','3','4'].forEach(d => {
-      const cell = sbd[d];
-      const pct = cell.rate !== null ? Math.round(cell.rate*100) + '%' : '&#8212;';
-      html += `<td class="success-cell" title="n=${cell.n}" style="background:${successColor(cell.rate)};">${pct}</td>`;
-    });
-    const ov = sbd.overall;
-    html += `<td class="success-cell" style="background:${successColor(ov.rate)}; font-weight:600;">${ov.rate!==null?Math.round(ov.rate*100)+'%':'&#8212;'}</td></tr>`;
-  });
-  html += '</tbody>';
-  document.getElementById('successTable').innerHTML = html;
-}
-
-/* ---------- Red zone efficiency ---------- */
-function renderRedzone() {
-  const rows = BIG12_TEAMS.slice()
-    .filter(t => t.redzone.trips > 0)
-    .sort((a,b) => (b.redzone.rate||0) - (a.redzone.rate||0));
-  const html = rows.map(t => {
-    const pct = Math.round(t.redzone.rate * 100);
-    return `
-      <div class="rz-row">
-        <div class="rz-team">${escapeHtml(t.t)}</div>
-        <div class="rz-bar-track"><div class="rz-bar-fill" style="width:${pct}%; background:${teamColor(t.t)};"></div></div>
-        <div class="rz-value">${pct}% (${t.redzone.tds}/${t.redzone.trips})</div>
-      </div>
-    `;
-  }).join('');
-  document.getElementById('redzoneWrap').innerHTML = html;
-}
-
-/* ---------- Explosive play tracker ---------- */
-let explosiveTab = 'top';
-function renderExplosive() {
-  const list = explosiveTab === 'top' ? explosivePlays.top : explosivePlays.bottom;
-  const html = list.map(p => {
-    const epa = p.epa || 0;
-    const color = epa >= 0 ? 'good' : 'bad';
-    return `
-      <div class="explosive-row">
-        <div class="explosive-epa ${color}">${epa>=0?'+':''}${fmt(epa,2)}</div>
-        <div>
-          <div class="explosive-meta">${escapeHtml(p.team)} vs ${escapeHtml(p.opponent)} &#183; Week ${p.week} &#183; ${ordinal(p.down)} down, ${fieldPosLabel(p.yardLine)} &#183; ${escapeHtml(p.playType)}</div>
-          <div class="explosive-text">${escapeHtml(p.playText)}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-  document.getElementById('explosiveWrap').innerHTML = html;
-}
-
-/* ---------- Head-to-head radar ---------- */
-const RADAR_DIMS = [
-  { key: 'offense', label: 'Offense', get: t => t.offEpa, fmt: v => fmt(v,3),
-    desc: 'Off EPA/play: average points gained per offensive play.\nFormula: mean(EPA) over plays where team = offense.' },
-  { key: 'defense', label: 'Defense', get: t => -t.defEpa, fmt: v => fmt(-v,3),
-    desc: 'Def EPA allowed, inverted so higher = better defense.\nFormula: \u2212mean(EPA) over plays where team = defense.' },
-  { key: 'explosive', label: 'Explosiveness', get: t => t.explosiveRate, fmt: v => Math.round(v*100)+'%',
-    desc: 'Share of offensive plays that are big gains.\nFormula: count(EPA \u2265 1.5) \u00f7 total offensive plays.' },
-  { key: 'success', label: 'Success rate', get: t => t.successByDown.overall.rate, fmt: v => Math.round(v*100)+'%',
-    desc: 'Share of offensive plays with positive EPA (play moved the team to a better situation than before it).\nFormula: count(EPA > 0) \u00f7 total offensive plays.' },
-  { key: 'redzone', label: 'Red zone TD%', get: t => t.redzone.rate === null ? 0 : t.redzone.rate, fmt: (v,t) => t.redzone.rate===null?'no trips':Math.round(v*100)+'%',
-    desc: 'Touchdown rate on offensive drives that reached the opponent\'s 20-yard line or closer.\nFormula: red zone touchdowns \u00f7 red zone trips.' }
-];
-
-function percentileRank(team, dim) {
-  const values = BIG12_TEAMS.map(t => dim.get(t)).filter(v => v !== null && v !== undefined);
-  const v = dim.get(team);
-  if (v === null || v === undefined || !values.length) return 0;
-  const below = values.filter(x => x <= v).length;
-  return Math.round((below / values.length) * 100);
-}
-
-function renderRadar() {
-  const teamA = document.getElementById('h2hTeamA').value;
-  const teamB = document.getElementById('h2hTeamB').value;
-  const tA = BIG12_TEAMS.find(t => t.t === teamA);
-  const tB = BIG12_TEAMS.find(t => t.t === teamB);
-  const W = 460, H = 420, cx = W/2, cy = H/2 - 10, R = 150;
-  const n = RADAR_DIMS.length;
-  const angle = i => -Math.PI/2 + i * (2*Math.PI/n);
-  const ptFor = (pct, i) => {
-    const r = (pct/100) * R;
-    return [cx + r*Math.cos(angle(i)), cy + r*Math.sin(angle(i))];
-  };
-
-  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:520px; display:block; margin:0 auto;">`;
-  // grid rings
-  [0.25,0.5,0.75,1].forEach(f => {
-    const pts = RADAR_DIMS.map((d,i) => ptFor(f*100, i).join(',')).join(' ');
-    svg += `<polygon points="${pts}" fill="none" stroke="#dde3ee" stroke-width="1" />`;
-  });
-  // axis lines + labels
-  RADAR_DIMS.forEach((d, i) => {
-    const [x,y] = ptFor(100, i);
-    svg += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#dde3ee" stroke-width="1" />`;
-    const [lx,ly] = ptFor(122, i);
-    svg += `<circle cx="${lx}" cy="${ly}" r="26" fill="transparent" class="radar-axis-hit" data-tip="${escapeHtml(d.label + '\n' + d.desc)}" />`;
-    svg += `<text x="${lx}" y="${ly}" text-anchor="middle" font-size="15" fill="#56657d" font-family="'JetBrains Mono', monospace" dy="4" style="pointer-events:none; text-decoration: underline; text-decoration-style: dashed; text-decoration-color: #b9c3d6;">${d.label}</text>`;
-  });
-
-  function shape(team, color) {
-    if (!team) return '';
-    const pts = RADAR_DIMS.map((d,i) => ptFor(percentileRank(team, d), i));
-    const pathPts = pts.map(p => p.join(',')).join(' ');
-    let s = `<polygon points="${pathPts}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="2" />`;
-    pts.forEach(([x,y], i) => {
-      const dim = RADAR_DIMS[i];
-      const pct = percentileRank(team, dim);
-      const raw = dim.fmt(dim.get(team), team);
-      const tip = `${team.t}\n${dim.label}: ${raw}\nPercentile: ${pct}`;
-      s += `<rect class="radar-pt" x="${x-5}" y="${y-5}" width="10" height="10" fill="${color}" stroke="#fff" stroke-width="1.5" data-tip="${escapeHtml(tip)}" />`;
-    });
-    return s;
-  }
-
-  svg += shape(tA, teamColor(teamA));
-  svg += shape(tB, teamColor(teamB));
-  svg += `</svg>`;
-  document.getElementById('radarWrap').innerHTML = svg;
-
-  document.getElementById('radarLegend').innerHTML = `
-    <div class="radar-legend-item"><span class="radar-swatch" style="background:${teamColor(teamA)};"></span>${escapeHtml(teamA)}</div>
-    <div class="radar-legend-item"><span class="radar-swatch" style="background:${teamColor(teamB)};"></span>${escapeHtml(teamB)}</div>
-  `;
-}
-
-function initH2HPicker() {
-  const selA = document.getElementById('h2hTeamA');
-  const selB = document.getElementById('h2hTeamB');
-  const opts = BIG12_TEAMS.map(t => `<option value="${escapeHtml(t.t)}">${escapeHtml(t.t)}</option>`).join('');
-  selA.innerHTML = opts;
-  selB.innerHTML = opts;
-  selA.value = BIG12_TEAMS[0].t;
-  selB.value = BIG12_TEAMS[1] ? BIG12_TEAMS[1].t : BIG12_TEAMS[0].t;
-  selA.addEventListener('change', renderRadar);
-  selB.addEventListener('change', renderRadar);
-}
-
-function renderHeatmap() {
-  let html = '<thead><tr><th class="left" style="padding:4px 8px;">Down</th>' +
-    BIN_LABELS.map(l => `<th style="font-weight:400;padding:4px 6px;">${l}</th>`).join('') + '</tr></thead><tbody>';
-  const ordinal = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
-  epTable.forEach(row => {
-    html += `<tr><td class="left" style="color:var(--text-dim);padding:4px 8px;">${ordinal[row.down]}</td>`;
-    row.cells.slice().reverse().forEach(c => {
-      const opacity = c.n < 15 ? 0.35 : 1;
-      html += `<td class="heat-cell" title="n=${c.n}" style="background:${epColor(c.ep)};opacity:${opacity};">${c.ep !== null ? c.ep.toFixed(1) : '—'}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody>';
-  document.getElementById('heatTable').innerHTML = html;
-}
-
-/* ---------- Team detail ---------- */
-function selectTeam(name) {
-  state.selectedTeam = name;
-  state.selectedGameId = null;
-  state.chartTeam = 'mine';
-  state.selectedBarDrive = null;
-  document.getElementById('clearBtn').style.display = name ? 'inline-block' : 'none';
-  renderLeaderboard();
-  renderScatter();
-  renderStandings();
-  renderTeamDetail();
-}
 
 const STAT_CATEGORY_LABELS = {
   passing: 'Passing',
@@ -3061,30 +2633,8 @@ const STAT_CATEGORY_LABELS = {
   interceptions: 'Interceptions',
   fumbles: 'Fumbles'
 };
-const POSITION_SORT = { QB: 0, RB: 1, WR: 2, TE: 3, OL: 4, DL: 5, LB: 6, CB: 7, S: 8, K: 9, P: 10 };
 
-function playersByTeam(team) {
-  return players
-    .filter(p => p.team === team)
-    .sort((a, b) => {
-      const pa = POSITION_SORT[a.position] ?? 99, pb = POSITION_SORT[b.position] ?? 99;
-      if (pa !== pb) return pa - pb;
-      return a.name.localeCompare(b.name);
-    });
-}
 
-function renderStatCategoryCard(catKey, statsObj) {
-  const label = STAT_CATEGORY_LABELS[catKey] || catKey;
-  const entries = Object.entries(statsObj);
-  return `
-    <div class="stat-cat-card">
-      <div class="stat-cat-title">${escapeHtml(label)}</div>
-      ${entries.map(([type, val]) => `
-        <div class="stat-cat-row"><span>${escapeHtml(type)}</span><span class="mono">${escapeHtml(val)}</span></div>
-      `).join('')}
-    </div>
-  `;
-}
 
 function renderStatRowsSection(catKey, statsObj) {
   const label = STAT_CATEGORY_LABELS[catKey] || catKey;
@@ -3099,189 +2649,9 @@ function renderStatRowsSection(catKey, statsObj) {
   `;
 }
 
-function initPlayerPickers() {
-  const teamSelect = document.getElementById('playerTeamSelect');
-  teamSelect.innerHTML = ACTIVE_ROSTER.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  teamSelect.addEventListener('change', () => { populatePlayerSelect(); renderPlayerDetail(); });
 
-  populatePlayerSelect();
 
-  const playerSelect = document.getElementById('playerSelect');
-  playerSelect.addEventListener('change', renderPlayerDetail);
 
-  renderPlayerDetail();
-}
-
-function populatePlayerSelect() {
-  const team = document.getElementById('playerTeamSelect').value;
-  const list = playersByTeam(team);
-  const playerSelect = document.getElementById('playerSelect');
-  playerSelect.innerHTML = list.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.position ? ' (' + escapeHtml(p.position) + ')' : ''}</option>`).join('');
-}
-
-function renderPlayerDetail() {
-  const wrap = document.getElementById('playerDetailWrap');
-  const playerSelect = document.getElementById('playerSelect');
-  const pid = playerSelect.value;
-  const player = players.find(p => p.id === pid);
-  if (!player) { wrap.innerHTML = ''; return; }
-
-  const seasonCats = Object.keys(player.season);
-  const games = Object.values(player.games).sort((a, b) => a.week - b.week);
-
-  wrap.innerHTML = `
-    <div class="detail-header">
-      <div class="detail-name">${escapeHtml(player.name)}</div>
-      <div class="detail-games">${escapeHtml(player.team)}${player.position ? ' &#183; ' + escapeHtml(player.position) : ''}</div>
-    </div>
-
-    <div class="card-label" style="margin:16px 0 8px;">Season stats</div>
-    <div class="stat-cat-grid">
-      ${seasonCats.length ? seasonCats.map(cat => renderStatCategoryCard(cat, player.season[cat])).join('') : '<p style="color:var(--text-dim); font-size:13px;">No season stats recorded yet.</p>'}
-    </div>
-
-    <div class="card-label" style="margin:20px 0 8px;">Game log</div>
-    ${games.length ? games.map(g => `
-      <div class="player-game-block">
-        <div class="player-game-header">Week ${g.week} vs ${escapeHtml(g.opponent)}</div>
-        <div class="stat-cat-grid">
-          ${Object.keys(g.stats).map(cat => renderStatCategoryCard(cat, g.stats[cat])).join('')}
-        </div>
-      </div>
-    `).join('') : '<p style="color:var(--text-dim); font-size:13px;">No game log yet.</p>'}
-  `;
-}
-
-function renderTeamDetail() {
-  const detail = document.getElementById('teamDetail');
-  const emptyNote = document.getElementById('emptyNote');
-  if (!state.selectedTeam) { detail.style.display = 'none'; emptyNote.style.display = 'block'; return; }
-  emptyNote.style.display = 'none';
-  detail.style.display = 'block';
-
-  const stats = teamStats.find(t => t.t === state.selectedTeam);
-  const idx = teamIndex(state.selectedTeam);
-  const games = gameStats.filter(g => g.home === state.selectedTeam || g.away === state.selectedTeam)
-    .slice().sort((a, b) => a.week - b.week);
-
-  if (!state.selectedGameId || !games.some(g => g.id === state.selectedGameId)) {
-    state.selectedGameId = games.length ? games[0].id : null;
-  }
-  const selGame = games.find(g => g.id === state.selectedGameId);
-  const opponent = selGame ? (selGame.home === state.selectedTeam ? selGame.away : selGame.home) : null;
-  const isHome = selGame ? selGame.home === state.selectedTeam : false;
-
-  // ALL plays in the selected game (both teams), in original chronological order,
-  // grouped into drives so the full sequence of possessions is visible
-  const allGamePlays = selGame ? plays.filter(p => p[0] === selGame.id) : [];
-  const driveOrder = [];
-  const driveMap = new Map();
-  allGamePlays.forEach(p => {
-    const driveId = p[3];
-    if (!driveMap.has(driveId)) { driveMap.set(driveId, []); driveOrder.push(driveId); }
-    driveMap.get(driveId).push(p);
-  });
-
-  const drives = driveOrder.map((driveId, i) => {
-    const grp = driveMap.get(driveId);
-    const start = grp[0], last = grp[grp.length - 1];
-    const offenseTeam = teams[start[1]];
-    const epaSum = grp.reduce((s, p) => s + (p[11] || 0), 0);
-    const result = describeDriveResult(last);
-    return {
-      num: i + 1, driveId, plays: grp, offenseTeam,
-      isSelectedTeam: offenseTeam === state.selectedTeam,
-      startLabel: fieldPosLabel(start[6]),
-      playCount: grp.length,
-      yards: start[6] - last[6],
-      epaSum, result
-    };
-  });
-
-  const driveById = new Map(drives.map(d => [d.driveId, d]));
-  const chartTeamName = state.chartTeam === 'opp' ? opponent : state.selectedTeam;
-  const chartDrives = drives.filter(d => d.offenseTeam === chartTeamName);
-  const maxAbs = Math.max(...chartDrives.map(d => Math.abs(d.epaSum || 0)), 1);
-  const selectedBar = state.selectedBarDrive !== null ? driveById.get(state.selectedBarDrive) : null;
-  const selectedBarValid = selectedBar && selectedBar.offenseTeam === chartTeamName;
-
-  detail.innerHTML = `
-    <div class="detail-header">
-      <div class="detail-name">${escapeHtml(state.selectedTeam)}</div>
-      <div class="detail-games">${games.length} game${games.length===1?'':'s'} in dataset</div>
-    </div>
-    <div class="detail-stats">
-      <div>Offense <b class="${stats.offEpa>0?'good':'bad'}">${fmt(stats.offEpa)}</b></div>
-      <div>Defense <b class="${stats.defEpa<0?'good':'bad'}">${fmt(stats.defEpa)}</b></div>
-      <div>Net <b class="${stats.net>0?'good':'bad'}">${fmt(stats.net)}</b></div>
-    </div>
-
-    <div class="game-picker">
-      <label for="teamGameSelect" style="font-size:12px; color:var(--text-dim); margin-right:8px;">Game</label>
-      <select id="teamGameSelect">
-        ${games.map(g => `<option value="${g.id}" ${g.id===state.selectedGameId?'selected':''}>${g.home===state.selectedTeam?'vs':'@'} ${escapeHtml(g.home===state.selectedTeam?g.away:g.home)} (Week ${g.week})</option>`).join('')}
-      </select>
-    </div>
-
-    ${selGame ? `
-    <div class="card-label" style="margin-top:16px;">${isHome?'vs':'@'} ${escapeHtml(opponent)} &#183; Week ${selGame.week} &#183; ${selGame.plays} plays &#183; ${selGame.drives} total drives</div>
-
-    <div class="card-label" style="margin:18px 0 4px;">EPA per drive</div>
-    <div class="chart-team-toggle">
-      <button class="toggle-btn ${state.chartTeam==='mine'?'toggle-btn-active':''}" data-chart-team="mine">${escapeHtml(state.selectedTeam)}</button>
-      <button class="toggle-btn ${state.chartTeam==='opp'?'toggle-btn-active':''}" data-chart-team="opp">${escapeHtml(opponent)}</button>
-    </div>
-    <div class="card-sub" style="margin:8px 0 8px;">Click a bar to see the plays in that drive.</div>
-    <div class="epa-bars">
-      ${chartDrives.map(d => {
-        const epa = d.epaSum || 0;
-        const h = Math.max(2, Math.abs(epa) / maxAbs * 100);
-        const isSel = state.selectedBarDrive === d.driveId;
-        const color = epa >= 0 ? 'var(--good)' : 'var(--bad)';
-        const driveTip = `Drive ${d.num}\nResult: ${d.result.label}\nStart on: ${d.startLabel}\n${d.playCount} play${d.playCount===1?'':'s'}\nDrive EPA: ${epa>=0?'+':''}${fmt(epa,2)}`;
-        return `<div class="epa-bar ${isSel?'epa-bar-selected':''}" data-bar-drive="${d.driveId}" style="height:${h}%; background:${color};" data-tip="${escapeHtml(driveTip)}"></div>`;
-      }).join('')}
-    </div>
-
-    <div id="barPlaysPanel" style="margin-top:14px;">
-      ${selectedBarValid ? `
-        <div class="card-label" style="margin-bottom:8px;">
-          Drive ${selectedBar.num}: ${escapeHtml(selectedBar.offenseTeam)}, started ${selectedBar.startLabel} &#8212;
-          <span class="${selectedBar.result.cls}">${selectedBar.result.label}</span> &#8212;
-          <span class="${selectedBar.epaSum>=0?'good':'bad'}">drive EPA ${fmt(selectedBar.epaSum,2)}</span>
-        </div>
-        <div class="table-scroll" style="max-height:none; overflow:visible; border:1px solid var(--line); border-radius:3px;">
-          ${renderPlaysTableHtml(selectedBar)}
-        </div>
-      ` : ''}
-    </div>
-    ` : `<p style="color:var(--text-dim); padding:20px 0;">No game data available.</p>`}
-  `;
-
-  const gameSelect = document.getElementById('teamGameSelect');
-  if (gameSelect) {
-    gameSelect.addEventListener('change', e => {
-      state.selectedGameId = Number(e.target.value);
-      state.chartTeam = 'mine';
-      state.selectedBarDrive = null;
-      renderTeamDetail();
-    });
-  }
-  document.querySelectorAll('.chart-team-toggle .toggle-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.chartTeam = btn.dataset.chartTeam;
-      state.selectedBarDrive = null;
-      renderTeamDetail();
-    });
-  });
-  document.querySelectorAll('.epa-bar[data-bar-drive]').forEach(bar => {
-    bar.addEventListener('click', () => {
-      const id = Number(bar.dataset.barDrive);
-      state.selectedBarDrive = state.selectedBarDrive === id ? null : id;
-      renderTeamDetail();
-    });
-  });
-}
 
 function wireHeaderTips() {
   const tip = document.getElementById('headerTip');
@@ -3298,15 +2668,6 @@ function wireHeaderTips() {
   });
 }
 
-function wireExplosiveTabs() {
-  document.querySelectorAll('.explosive-tabs .toggle-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      explosiveTab = btn.dataset.explosiveTab;
-      document.querySelectorAll('.explosive-tabs .toggle-btn').forEach(b => b.classList.toggle('toggle-btn-active', b === btn));
-      renderExplosive();
-    });
-  });
-}
 
 /* ===================== Expected Points Model ===================== */
 
@@ -3408,18 +2769,23 @@ function renderEPSummary() {
     { label: 'Total Offensive Plays', va: a.totalPlays, vb: b.totalPlays, fmt: v => String(v), higherBetter: null, tip: EP_METRIC_DEFS['Total Offensive Plays'] }
   ];
 
+  // Fixed column widths with the two value columns pulling inward (right-/left-aligned
+  // toward the center label) so the row visually converges toward the middle, matching the
+  // Upcoming Week schedule card's layout, instead of the label column claiming most of the
+  // row and stranding the right value wherever auto table-layout happens to place it.
   wrap.innerHTML = `
-    <table>
-      <thead><tr><th class="left">${escapeHtml(epEntityA)}</th><th></th><th class="left">${escapeHtml(epEntityB)}</th></tr></thead>
+    <table style="table-layout:fixed;">
+      <colgroup><col style="width:34%"><col style="width:32%"><col style="width:34%"></colgroup>
+      <thead><tr><th style="text-align:right;">${escapeHtml(epEntityA)}</th><th></th><th style="text-align:left;">${escapeHtml(epEntityB)}</th></tr></thead>
       <tbody>
         ${rows.map(r => {
           const aBetter = r.higherBetter !== null && (r.higherBetter ? r.va > r.vb : r.va < r.vb);
           const bBetter = r.higherBetter !== null && (r.higherBetter ? r.vb > r.va : r.vb < r.va);
           return `
           <tr>
-            <td class="mono" style="${aBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.va)}</td>
-            <td class="left" data-tip="${escapeHtml(r.tip)}" style="cursor:help; color:var(--text-dim); font-size:13px;">${escapeHtml(r.label)}</td>
-            <td class="mono" style="${bBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.vb)}</td>
+            <td class="mono" style="text-align:right; ${aBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.va)}</td>
+            <td data-tip="${escapeHtml(r.tip)}" style="text-align:center; cursor:help; color:var(--text-dim); font-size:13px;">${escapeHtml(r.label)}</td>
+            <td class="mono" style="text-align:left; ${bBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.vb)}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -3595,18 +2961,23 @@ function renderEPRedZone() {
       tip: "TD RATE / RED ZONE PLAY\n\nFormula: Red Zone Touchdowns \u00f7 Red Zone Plays\n\nMeasured per play, not per possession \u2014 not directly comparable to a traditional 'red zone trip conversion rate.'" }
   ];
 
+  // Fixed column widths with the two value columns pulling inward (right-/left-aligned
+  // toward the center label) so the row visually converges toward the middle, matching the
+  // Upcoming Week schedule card's layout, instead of the label column claiming most of the
+  // row and stranding the right value wherever auto table-layout happens to place it.
   wrap.innerHTML = `
-    <table>
-      <thead><tr><th class="left">${escapeHtml(epEntityA)}</th><th></th><th class="left">${escapeHtml(epEntityB)}</th></tr></thead>
+    <table style="table-layout:fixed;">
+      <colgroup><col style="width:34%"><col style="width:32%"><col style="width:34%"></colgroup>
+      <thead><tr><th style="text-align:right;">${escapeHtml(epEntityA)}</th><th></th><th style="text-align:left;">${escapeHtml(epEntityB)}</th></tr></thead>
       <tbody>
         ${rows.map(r => {
           const aBetter = r.higherBetter !== null && (r.higherBetter ? r.va > r.vb : r.va < r.vb);
           const bBetter = r.higherBetter !== null && (r.higherBetter ? r.vb > r.va : r.vb < r.va);
           return `
           <tr>
-            <td class="mono" style="${aBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.va)}</td>
-            <td class="left" data-tip="${escapeHtml(r.tip)}" style="cursor:help; color:var(--text-dim); font-size:13px;">${escapeHtml(r.label)}</td>
-            <td class="mono" style="${bBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.vb)}</td>
+            <td class="mono" style="text-align:right; ${aBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.va)}</td>
+            <td data-tip="${escapeHtml(r.tip)}" style="text-align:center; cursor:help; color:var(--text-dim); font-size:13px;">${escapeHtml(r.label)}</td>
+            <td class="mono" style="text-align:left; ${bBetter ? 'font-weight:700; color:var(--accent);' : ''}">${r.fmt(r.vb)}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -3674,28 +3045,39 @@ function renderAllEPCards() {
 }
 
 
-renderConfTabs();
-wirePageTabs();
-updateHeaderText();
-renderUpcomingWeek();
-renderStandings();
-renderSeasonLeaders();
-renderSeasonAverages();
-renderPassingLeaders();
-renderReceivingLeaders();
-renderRushingLeaders();
-wireHeaderTips();
+// try/finally so a bug in any single render call can't leave the user stuck staring at
+// "Loading dashboard..." forever — the overlay comes down regardless, even if something
+// above throws (in which case it's logged, and whatever did manage to render stays visible
+// rather than hiding the whole page behind a frozen spinner).
+try {
+  renderConfTabs();
+  wirePageTabs();
+  updateHeaderText();
+  renderUpcomingWeek();
+  renderStandings();
+  renderSeasonLeaders();
+  renderSeasonAverages();
+  renderPassingLeaders();
+  renderReceivingLeaders();
+  renderRushingLeaders();
+  wireHeaderTips();
 
-populateAnalysisPickers();
-renderRadarChart();
+  populateAnalysisPickers();
+  renderRadarChart();
 
-renderBoxScoreCompare();
-populatePlayerRadarPickers();
-renderPlayerRadar();
-renderTrendCompare();
+  renderBoxScoreCompare();
+  populatePlayerRadarPickers();
+  renderPlayerRadar();
+  renderTrendCompare();
 
-populateEPTeamSelect();
-renderAllEPCards();
+  populateEPTeamSelect();
+  renderAllEPCards();
+} catch (e) {
+  console.error('Dashboard initialization error:', e);
+} finally {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.remove();
+}
 </script>
 </body>
 </html>
