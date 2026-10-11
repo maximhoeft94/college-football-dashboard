@@ -1,0 +1,35 @@
+name: Weekly CFB data refresh
+
+on:
+  schedule:
+    # Sundays 15:00 UTC = 8:00am MST (UTC-7). During daylight saving time (MDT, UTC-6)
+    # this fires at 9:00am local; change to '0 14 * * 0' if you want 8am local in summer.
+    - cron: '0 15 * * 0'
+  workflow_dispatch: {}   # manual "Run workflow" button
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Refresh data
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: python refresh_cfb.py index.html
+      - name: Commit and push if index.html changed
+        run: |
+          git config user.name "CFB Dashboard Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Weekly data refresh: $(date -u +'%Y-%m-%d')"
+            git push
+          fi
