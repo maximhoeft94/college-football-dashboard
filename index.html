@@ -1321,25 +1321,22 @@ const TEAM_COLORS = {
 function teamColor(name) { return TEAM_COLORS[name] || '#0047BA'; }
 
 // A team's national Power Ranking rank (1-138), cached after first lookup. Used to show a
-// small "#N" badge next to a team's name anywhere it appears as a label, for teams ranked in
-// the top 25.
+// small "#N" badge next to a team's name in the All Conferences standings only (top 25).
 function teamPowerRank(team) {
   if (!teamPowerRank._map) {
     teamPowerRank._map = new Map(computePowerRankings().map(r => [r.team, r.rank]));
   }
   return teamPowerRank._map.get(team) || null;
 }
-function teamLabelHtml(team) {
-  const rank = teamPowerRank(team);
+function teamLabelHtml(team, showRank) {
+  const rank = showRank ? teamPowerRank(team) : null;
   const badge = (rank && rank <= 25) ? `<span class="rank-badge"> #${rank}</span>` : '';
   return escapeHtml(team) + badge;
 }
 // SVG <text> doesn't support HTML <span>, so chart legends need a <tspan>-based equivalent
 // to get the same smaller, right-set rank badge.
 function teamLabelSvgTspan(team) {
-  const rank = teamPowerRank(team);
-  if (!rank || rank > 25) return escapeHtml(team);
-  return `${escapeHtml(team)}<tspan font-size="0.75em" fill="var(--text-dim)"> #${rank}</tspan>`;
+  return escapeHtml(team);   // rank badges are shown only in the All Conferences standings
 }
 
 const TEAM_ABBR = {
@@ -1689,7 +1686,7 @@ function renderStandings() {
       <tr class="team-row ${isSel?'selected':''}" data-team="${escapeHtml(t.t)}">
         <td class="rank-num">${i+1}</td>
         <td class="left" style="font-weight:500;">
-          <span class="team-dot" style="background:${teamColor(t.t)};"></span><span class="team-name-link" data-team="${escapeHtml(t.t)}">${teamLabelHtml(t.t)}</span>
+          <span class="team-dot" style="background:${teamColor(t.t)};"></span><span class="team-name-link" data-team="${escapeHtml(t.t)}">${teamLabelHtml(t.t, isAllConferences)}</span>
         </td>
         <td class="mono">${record}</td>
         <td class="mono" style="color:var(--text-dim);">${confRecord}</td>
