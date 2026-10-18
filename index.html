@@ -529,7 +529,6 @@ div[id$="Wrap"] { overflow-x: auto; }
 .schedule-overlay-panel { max-width: 560px; }
 .team-name-link { cursor: pointer; }
 .team-name-link:hover { text-decoration: underline; }
-.rank-badge { font-size: 11px; font-weight: 400; color: var(--text-dim); }
 .schedule-result-badge {
   display: inline-block;
   font-family: 'JetBrains Mono', monospace;
@@ -819,7 +818,6 @@ tr.team-row.selected td { background: var(--surface-raised); }
   <div class="page-tabs" id="pageTabs">
     <button class="page-tab page-tab-active" data-page="team">Team Dashboard</button>
     <button class="page-tab" data-page="ep">Expected Points Model</button>
-    <button class="page-tab" data-page="power">Power Rankings</button>
   </div>
 
   <div class="conf-tabs" id="confTabs"></div>
@@ -833,17 +831,6 @@ tr.team-row.selected td { background: var(--surface-raised); }
   </div>
 
   <div class="section-label">Season Overview</div>
-
-  <div class="card" style="margin-bottom:20px;">
-    <div class="card-label">How Teams Are Ranked</div>
-    <div class="card-sub" style="margin-bottom:0;">
-      The standings below (All Conferences view) are sorted by a custom Power Rating, not just win-loss record. It's built from seven pieces, each converted to a z-score (standard deviations from the FBS average) before combining, so no single ingredient dominates just because its numbers happen to run bigger.
-      <br><br>
-      <b>Rating = 20% &times; Net EPA/play + 10% &times; Off Success Rate + 10% &times; Def Success Rate Allowed (inverted) + 10% &times; Explosiveness + 20% &times; Point Differential/game + 15% &times; Strength of Record + 15% &times; Head-to-Head</b>
-      <br><br>
-      EPA, Success Rate, and Explosiveness are kept as three distinct signals rather than restatements of each other: EPA captures how much value a team creates per play, Success Rate captures down-to-down consistency, and Explosiveness captures big-play ability (and vulnerability) that Success Rate specifically misses. Together these play-level efficiency pieces make up 50% of the rating, weighted heaviest since they tend to be more predictive and less noisy than a handful of game results this early in a season. Strength of Record comes from an iterative rating (each team's score = their own average scoring margin plus the average rating of their opponents, solved by repeating that calculation until it stops changing) &#8212; the same approach behind Sports Reference's SRS. That rewards playing and beating good opponents rather than just racking up wins against weak competition. Head-to-Head is the results piece: every FBS game counts +1 for a win or &minus;1 for a loss, plus half of the opponent's strength (in standard deviations), averaged per game. Beating a top team is worth far more than beating a weak one, and losing to a strong team costs less than losing to a weak one. On top of that, a tiebreak rule applies: if a team beat another team that the formula rates only slightly above it (within 0.15 rating points), the two are placed next to each other with the winner first (meeting in the middle of where they were), so a head-to-head win is never ranked below the loss when the teams are that close. See the Power Rankings page for the full national list and a breakdown of every component. In the All Conferences standings, teams in the national top 25 show their rank next to their name (e.g. BYU <span class="rank-badge">#2</span>).
-    </div>
-  </div>
 
   <div class="card" style="padding:0; overflow:hidden;">
     <div style="padding:20px 20px 0;">
@@ -861,7 +848,6 @@ tr.team-row.selected td { background: var(--surface-raised); }
             <th data-tip="Total points scored across all games so far.">Pts Scored</th>
             <th data-tip="Total points allowed across all games so far.">Pts Allowed</th>
             <th data-tip="Total points scored minus total points allowed, across all games so far.">Point Diff</th>
-            <th id="standingsEpaTh" style="display:none;" data-tip="COMPOSITE POWER RATING&#10;&#10;20% Net EPA/play + 10% Off Success Rate + 10% Def Success Rate Allowed (inverted) + 10% Explosiveness + 20% Point Differential/game + 15% Strength of Record + 15% Head-to-Head, each z-scored across all FBS teams. See the Power Rankings page for the full explanation. Hover a value to see the component breakdown.">Rating</th>
             <th data-tip="Result of the most recent game (W or L) and how many games in a row that result has repeated. Not very meaningful yet with one game played &#8212; fills in as more weeks are added.">Streak</th>
             <th class="left" data-tip="Each team's most recently completed game and its result, pulled from the official season schedule.">Previous Opponent</th>
             <th class="left" data-tip="Each team's next scheduled game, pulled from the official season schedule (not the play-by-play or box score sheets).">Next Opponent</th>
@@ -1141,28 +1127,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
 
   </div>
 
-  <div id="powerRankingsPage" style="display:none;">
 
-  <div class="section-label">Power Rankings</div>
-
-  <div class="card" style="margin-bottom:20px;">
-    <div class="card-label">How This Is Calculated</div>
-    <div class="card-sub" style="margin-bottom:0;">
-      A custom power rating built from seven pieces, each converted to a z-score (standard deviations from the FBS average) before combining, so no single ingredient dominates just because its numbers happen to run bigger.
-      <br><br>
-      <b>Rating = 20% &times; Net EPA/play + 10% &times; Off Success Rate + 10% &times; Def Success Rate Allowed (inverted) + 10% &times; Explosiveness + 20% &times; Point Differential/game + 15% &times; Strength of Record + 15% &times; Head-to-Head</b>
-      <br><br>
-      EPA, Success Rate, and Explosiveness are kept as three distinct signals rather than restatements of each other: EPA captures how much value a team creates per play, Success Rate captures down-to-down consistency, and Explosiveness captures big-play ability (and vulnerability) that Success Rate specifically misses. Together these play-level efficiency pieces make up 50% of the rating, weighted heaviest since they tend to be more predictive and less noisy than a handful of game results this early in a season. Strength of Record comes from an iterative rating (each team's score = their own average scoring margin plus the average rating of their opponents, solved by repeating that calculation until it stops changing) &#8212; the same approach behind Sports Reference's SRS. That naturally rewards playing &mdash; and beating &mdash; good opponents, rather than just counting wins. Head-to-Head is the results piece: every FBS game counts +1 for a win or &minus;1 for a loss, plus half of the opponent's strength (in standard deviations), averaged per game. Beating a top team is worth far more than beating a weak one, and losing to a strong team costs less than losing to a weak one. On top of that, a tiebreak rule applies: if a team beat another team that the formula rates only slightly above it (within 0.15 rating points), the two are placed next to each other with the winner first (meeting in the middle of where they were), so a head-to-head win is never ranked below the loss when the teams are that close. Games against non-FBS opponents are excluded from the schedule-strength calculation, since those opponents don't have a rating in this system.
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-label">Power Rankings</div>
-    <div class="card-sub" id="powerRankingsSub" style="margin-bottom:6px;"></div>
-    <div id="powerRankingsWrap"></div>
-  </div>
-
-  </div>
 
   <div id="headerTip"></div>
 
@@ -1320,25 +1285,6 @@ const TEAM_COLORS = {
 };
 function teamColor(name) { return TEAM_COLORS[name] || '#0047BA'; }
 
-// A team's national Power Ranking rank (1-138), cached after first lookup. Used to show a
-// small "#N" badge next to a team's name in the All Conferences standings only (top 25).
-function teamPowerRank(team) {
-  if (!teamPowerRank._map) {
-    teamPowerRank._map = new Map(computePowerRankings().map(r => [r.team, r.rank]));
-  }
-  return teamPowerRank._map.get(team) || null;
-}
-function teamLabelHtml(team, showRank) {
-  const rank = showRank ? teamPowerRank(team) : null;
-  const badge = (rank && rank <= 25) ? `<span class="rank-badge"> #${rank}</span>` : '';
-  return escapeHtml(team) + badge;
-}
-// SVG <text> doesn't support HTML <span>, so chart legends need a <tspan>-based equivalent
-// to get the same smaller, right-set rank badge.
-function teamLabelSvgTspan(team) {
-  return escapeHtml(team);   // rank badges are shown only in the All Conferences standings
-}
-
 const TEAM_ABBR = {
   'Arizona': 'ARIZ',
   'Arizona State': 'ASU',
@@ -1422,7 +1368,6 @@ function gamesPlayedFor(team) {
 
 
 const _teamEpaCache = {};
-const _teamEfficiencyCache = {};
 // Same definition as the Expected Points page: average EPA (ppa) over a team's offensive plays,
 // and over the plays its defense faced. Net = offense minus defense allowed.
 function teamEpaStats(team) {
@@ -1438,282 +1383,29 @@ function fmtEpa(v) {
   return Number(t) === 0 ? '0.00' : (v > 0 ? '+' : '') + t;
 }
 
-// Success rate (consistency) and explosive-play rate (big-play ability), both offense and
-// defense-allowed, for any team. Same definitions already used on the Expected Points Model
-// page, generalized here so every team (not just the two being compared) gets a value for
-// the Power Rating formula.
-function teamEfficiencyStats(team) {
-  if (_teamEfficiencyCache[team]) return _teamEfficiencyCache[team];
-  const all = teamPlays[team] || [];
-  const off = all.filter(p => p.off);
-  const def = all.filter(p => !p.off);
-  const successRate = arr => arr.length ? arr.filter(p => epSuccess(p.down, p.dist, p.yds)).length / arr.length : null;
-  const explosive = arr => arr.filter(p => (p.type.includes('Rush') && p.yds >= 15) || (p.type.includes('Pass') && p.yds >= 20));
-  const explosiveRate = arr => arr.length ? explosive(arr).length / arr.length : null;
-  const result = {
-    offSuccess: successRate(off), defSuccess: successRate(def),
-    offExplosive: explosiveRate(off), defExplosive: explosiveRate(def)
-  };
-  return (_teamEfficiencyCache[team] = result);
-}
-
-/* ===================== Power Rankings ===================== */
-
-// Iterative "Simple Rating System" style rating: each team's rating equals its own average
-// scoring margin plus the average rating of its opponents, solved by repeating that
-// calculation until it converges. Games against teams outside this dataset (FCS opponents)
-// are excluded, since they have no rating to plug in.
-function computeSRS() {
-  const allTeams = conferenceRosters['All Conferences'] || [];
-  const teamSet = new Set(allTeams);
-  const games = {};
-  allTeams.forEach(t => {
-    games[t] = (teamSchedule[t] || [])
-      .filter(g => g.completed && g.teamPoints != null && g.oppPoints != null && teamSet.has(g.opponent))
-      .map(g => ({ opp: g.opponent, margin: g.teamPoints - g.oppPoints }));
-  });
-
-  let rating = {};
-  allTeams.forEach(t => { rating[t] = 0; });
-  for (let iter = 0; iter < 100; iter++) {
-    const next = {};
-    allTeams.forEach(t => {
-      const gs = games[t];
-      if (!gs.length) { next[t] = 0; return; }
-      const sum = gs.reduce((s, g) => s + g.margin + rating[g.opp], 0);
-      next[t] = sum / gs.length;
-    });
-    rating = next;
-  }
-
-  const avgMargin = {};
-  allTeams.forEach(t => {
-    const gs = games[t];
-    avgMargin[t] = gs.length ? gs.reduce((s, g) => s + g.margin, 0) / gs.length : 0;
-  });
-
-  // Strength of Record = the part of the SRS rating NOT explained by the team's own scoring
-  // margin \u2014 i.e. how much tougher (or easier) their schedule was than average.
-  const sos = {};
-  allTeams.forEach(t => { sos[t] = rating[t] - avgMargin[t]; });
-  return { srs: rating, sos, gamesUsed: games };
-}
-
-function zScoreMap(valuesByTeam, teams) {
-  const vals = teams.map(t => valuesByTeam[t]).filter(v => v != null && !Number.isNaN(v));
-  const mean = vals.reduce((s, v) => s + v, 0) / (vals.length || 1);
-  const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / (vals.length || 1);
-  const sd = Math.sqrt(variance) || 1;
-  const z = {};
-  teams.forEach(t => {
-    const v = valuesByTeam[t];
-    z[t] = (v == null || Number.isNaN(v)) ? 0 : (v - mean) / sd;
-  });
-  return z;
-}
-
-// Efficiency-leaning: EPA + Success Rate + Explosiveness combine for 50%, Point Differential
-// and Strength of Record 35%, and Head-to-Head results 15%. EPA, Success Rate, and Explosiveness are kept
-// as genuinely distinct signals rather than restatements of each other: EPA captures overall
-// value per play, Success Rate captures down-to-down consistency, Explosiveness captures
-// big-play ability/vulnerability that Success Rate specifically misses.
-const POWER_WEIGHTS = { epa: 0.20, offSuccess: 0.10, defSuccess: 0.10, explosiveness: 0.10, pointDiff: 0.20, sos: 0.15, h2h: 0.15 };
-
-// Head-to-head adjustment limits (in composite-rating units; the league-wide standard deviation
-// is roughly 0.75).
-const H2H_MAX_GAP = 0.15;
-function computePowerRankings() {
-  if (computePowerRankings._cache) return computePowerRankings._cache;
-  const allTeams = conferenceRosters['All Conferences'] || [];
-  const byTeam = new Map(standings.map(s => [s.t, s]));
-  const { sos } = computeSRS();
-
-  const offEpa = {}, defEpa = {}, netEpa = {}, pointDiffPerGame = {};
-  const offSuccess = {}, defSuccess = {}, explosiveness = {};
-  allTeams.forEach(t => {
-    const ep = teamEpaStats(t);
-    offEpa[t] = ep.off;
-    defEpa[t] = ep.def;
-    netEpa[t] = ep.net;
-    const eff = teamEfficiencyStats(t);
-    offSuccess[t] = eff.offSuccess;
-    defSuccess[t] = eff.defSuccess;
-    explosiveness[t] = (eff.offExplosive != null && eff.defExplosive != null) ? eff.offExplosive - eff.defExplosive : null;
-    const s = byTeam.get(t) || {};
-    const gp = Math.max(1, s.gamesPlayed || ((s.wins||0) + (s.losses||0)));
-    pointDiffPerGame[t] = (s.pointDiff || 0) / gp;
-  });
-
-  const zEpa = zScoreMap(netEpa, allTeams);
-  const zOffSuccess = zScoreMap(offSuccess, allTeams);
-  const zDefSuccess = zScoreMap(defSuccess, allTeams); // higher = worse defense, negated below
-  const zExplosiveness = zScoreMap(explosiveness, allTeams);
-  const zPD = zScoreMap(pointDiffPerGame, allTeams);
-  const zSOS = zScoreMap(sos, allTeams);
-
-  // Everything except head-to-head, rescaled to a full-weight rating. Used to judge how strong
-  // each opponent is when scoring results below.
-  const statWeightTotal = 1 - POWER_WEIGHTS.h2h;
-  const statRating = {};
-  allTeams.forEach(t => {
-    statRating[t] = (POWER_WEIGHTS.epa * zEpa[t]
-      + POWER_WEIGHTS.offSuccess * zOffSuccess[t]
-      - POWER_WEIGHTS.defSuccess * zDefSuccess[t]
-      + POWER_WEIGHTS.explosiveness * zExplosiveness[t]
-      + POWER_WEIGHTS.pointDiff * zPD[t]
-      + POWER_WEIGHTS.sos * zSOS[t]) / statWeightTotal;
-  });
-  const zStat = zScoreMap(statRating, allTeams);
-
-  // Head-to-head results component: each FBS game is worth +1 for a win or -1 for a loss, plus
-  // half of the opponent's strength (in standard deviations). So a win over a top team counts
-  // for much more than a win over a weak one, and a loss to a strong team costs less than a
-  // loss to a weak one. Averaged per game so bye weeks don't matter.
-  const h2hScore = {};
-  allTeams.forEach(t => {
-    let sum = 0, n = 0;
-    (teamSchedule[t] || []).forEach(e => {
-      if (!e.completed || zStat[e.opponent] === undefined) return;
-      sum += (e.result === 'W' ? 1 : (e.result === 'L' ? -1 : 0)) + 0.5 * zStat[e.opponent];
-      n += 1;
-    });
-    h2hScore[t] = n ? sum / n : 0;
-  });
-  const zH2H = zScoreMap(h2hScore, allTeams);
-
-  const composite = {};
-  allTeams.forEach(t => {
-    composite[t] = statWeightTotal * statRating[t] + POWER_WEIGHTS.h2h * zH2H[t];
-  });
-
-  // Head-to-head rule: a team that beat another shouldn't be ranked below it when the two are
-  // close. Start from the order by raw rating, then for every result where the winner sits
-  // below the loser AND the raw ratings are within H2H_MAX_GAP, put the pair side by side, winner first. Ratings themselves are not changed (so there is no compounding); only the
-  // order is. Games are applied in week order and passes are capped so a rare cycle
-  // (A beat B, B beat C, C beat A) can't loop forever. Bigger gaps are left alone, so one
-  // fluke result can't vault a team past much better ones.
-  const h2hGames = [];
-  allTeams.forEach(t => (teamSchedule[t] || []).forEach(e => {
-    if (e.completed && e.result === 'W' && composite[e.opponent] !== undefined) {
-      h2hGames.push({ w: t, l: e.opponent, week: e.week });
-    }
-  }));
-  h2hGames.sort((a, b) => a.week - b.week);
-  const ranked = allTeams.slice().sort((a, b) => composite[b] - composite[a]);
-  const h2hOver = {};
-  for (let pass = 0; pass < 12; pass++) {
-    let changed = false;
-    h2hGames.forEach(g => {
-      const wi = ranked.indexOf(g.w), li = ranked.indexOf(g.l);
-      if (wi > li && composite[g.l] - composite[g.w] <= H2H_MAX_GAP) {
-        // Meet in the middle: take both teams out and put them back as an adjacent pair
-        // (winner first) at the midpoint of where they were, so neither team leaps over
-        // everyone between them.
-        const mid = Math.floor((li + wi) / 2);
-        ranked.splice(wi, 1);
-        ranked.splice(li, 1);
-        ranked.splice(mid, 0, g.w, g.l);
-        (h2hOver[g.w] = h2hOver[g.w] || new Set()).add(g.l);
-        changed = true;
-      }
-    });
-    if (!changed) break;
-  }
-  const result = ranked.map((t, i) => ({
-    rank: i + 1, team: t, composite: composite[t],
-    h2hScore: h2hScore[t], h2hZ: zH2H[t],
-    h2hOver: h2hOver[t] ? Array.from(h2hOver[t]) : [],
-    offEpa: offEpa[t], defEpa: defEpa[t],
-    offSuccess: offSuccess[t], defSuccess: defSuccess[t], explosiveness: explosiveness[t],
-    pointDiffPerGame: pointDiffPerGame[t], sos: sos[t]
-  }));
-  return (computePowerRankings._cache = result);
-}
-
-function renderPowerRankings() {
-  const wrap = document.getElementById('powerRankingsWrap');
-  if (!wrap) return;
-  const rows = computePowerRankings();
-  const byTeam = new Map(standings.map(s => [s.t, s]));
-
-  const subEl = document.getElementById('powerRankingsSub');
-  if (subEl) subEl.textContent = `All ${rows.length} FBS teams, ranked by composite power rating (higher is better), with a head-to-head adjustment: an "H" marks a team placed above a close-rated team it beat.`;
-
-  wrap.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th class="rank-num">#</th>
-          <th class="left">Team</th>
-          <th class="left">Record</th>
-          <th data-tip="COMPOSITE POWER RATING&#10;&#10;20% Net EPA/play + 10% Off Success Rate + 10% Def Success Rate Allowed (inverted) + 10% Explosiveness + 20% Point Differential/game + 15% Strength of Record + 15% Head-to-Head, each z-scored across all FBS teams before weighting.">Rating</th>
-          <th data-tip="OFFENSIVE EPA PER PLAY&#10;&#10;Average Expected Points Added per offensive play.">Off EPA</th>
-          <th data-tip="DEFENSIVE EPA ALLOWED PER PLAY&#10;&#10;Average Expected Points Added allowed per defensive play. Lower (more negative) is better.">Def EPA</th>
-          <th data-tip="OFFENSIVE SUCCESS RATE&#10;&#10;Share of offensive plays meeting the down-based success threshold. Measures down-to-down consistency, separate from EPA's measure of magnitude.">Off Succ%</th>
-          <th data-tip="DEFENSIVE SUCCESS RATE ALLOWED&#10;&#10;Same success-rate formula, against this team's defense. Lower is better.">Def Succ%</th>
-          <th data-tip="EXPLOSIVENESS&#10;&#10;Offensive explosive-play rate (15+ yard runs, 20+ yard passes) minus the same rate allowed on defense. Captures big-play ability/vulnerability that Success Rate specifically misses.">Explosive</th>
-          <th data-tip="POINT DIFFERENTIAL PER GAME&#10;&#10;Season point differential divided by games played.">Pt Diff/G</th>
-          <th data-tip="HEAD-TO-HEAD&#10;&#10;Results score: +1 per win and -1 per loss against FBS teams, plus half of the opponent's strength, averaged per game and shown in standard deviations from the FBS average. Beating strong teams counts the most.">H2H</th>
-          <th data-tip="STRENGTH OF RECORD&#10;&#10;The portion of this team's iterative SRS rating attributable to opponent quality, rather than their own scoring margin. Positive = tougher-than-average schedule.">SOS</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map(r => {
-          const s = byTeam.get(r.team) || {};
-          const record = `${s.wins||0}-${s.losses||0}`;
-          const pct = v => v == null ? '&#8212;' : (v*100).toFixed(1) + '%';
-          const signed1 = v => v == null ? '&#8212;' : (v >= 0 ? '+' : '') + (v*100).toFixed(1);
-          return `
-          <tr>
-            <td class="rank-num"${r.h2hOver.length ? ` data-tip="${escapeHtml('HEAD-TO-HEAD\n\nRanked above ' + r.h2hOver.join(', ') + ' because ' + r.team + ' beat ' + (r.h2hOver.length > 1 ? 'them' : 'them') + ' and the two ratings are close, even though the formula alone rates them slightly lower.')}"` : ''}>${r.rank}${r.h2hOver.length ? '<sup style="color:var(--text-dim);line-height:0;">H</sup>' : ''}</td>
-            <td class="left" style="font-weight:500;">
-              <span class="team-dot" style="background:${teamColor(r.team)};"></span><span class="team-name-link" data-team="${escapeHtml(r.team)}">${escapeHtml(r.team)}</span>
-            </td>
-            <td class="left mono">${record}</td>
-            <td class="mono" style="font-weight:700;">${r.composite >= 0 ? '+' : ''}${r.composite.toFixed(2)}</td>
-            <td class="mono">${fmtEpa(r.offEpa)}</td>
-            <td class="mono">${fmtEpa(r.defEpa)}</td>
-            <td class="mono">${pct(r.offSuccess)}</td>
-            <td class="mono">${pct(r.defSuccess)}</td>
-            <td class="mono">${signed1(r.explosiveness)}</td>
-            <td class="mono">${r.pointDiffPerGame >= 0 ? '+' : ''}${r.pointDiffPerGame.toFixed(1)}</td>
-            <td class="mono">${r.h2hZ >= 0 ? '+' : ''}${r.h2hZ.toFixed(1)}</td>
-            <td class="mono">${r.sos >= 0 ? '+' : ''}${r.sos.toFixed(1)}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
-  wrap.querySelectorAll('.team-name-link').forEach(el => {
-    el.addEventListener('click', () => openTeamScheduleOverlay(el.dataset.team));
-  });
-}
-
 function renderStandings() {
   const isAllConferences = ACTIVE_CONFERENCE === 'All Conferences';
   const byTeam = new Map(standings.map(s => [s.t, s]));
 
-  const epaTh = document.getElementById('standingsEpaTh');
   const rankTh = document.getElementById('standingsRankTh');
-  const powerByTeam = new Map(computePowerRankings().map(r => [r.team, r]));
-  if (epaTh) {
-    epaTh.style.display = isAllConferences ? '' : 'none';
-    epaTh.textContent = 'Rating';
-  }
   if (rankTh) rankTh.setAttribute('data-tip', isAllConferences
-    ? 'Ranked by composite Power Rating: 20% Net EPA/play + 10% Off Success Rate + 10% Def Success Rate Allowed (inverted) + 10% Explosiveness + 20% Point Differential/game + 15% Strength of Record + 15% Head-to-Head, each z-scored across all FBS teams. See the Power Rankings page for the full explanation. Not a national (AP/CFP) ranking.'
+    ? 'Ranked by win percentage, then EPA per play, then point differential. Not a national (AP/CFP) ranking.'
     : 'Rank by conference win margin (conf wins minus conf losses), then conference wins, then overall wins, then point differential, then points scored, among the teams in this view. Not a national (AP/CFP) ranking \u2014 that data isn\'t in this dataset.');
 
   const updatedEl = document.getElementById('standingsUpdatedText');
   if (updatedEl) {
     updatedEl.textContent = isAllConferences
-      ? 'Sorted by Power Rating (see the Power Rankings page for the formula).'
+      ? 'Sorted by win percentage, then EPA per play, then point differential.'
       : 'Sorted by conference win margin, then conference wins, then overall wins, then point differential.';
   }
 
+  const winPct = s => { const g = (s.wins||0) + (s.losses||0); return g ? (s.wins||0) / g : 0; };
   const sortedTeams = ACTIVE_ROSTER.slice().sort(isAllConferences ? ((a, b) => {
-    const ra = (powerByTeam.get(a) || {}).composite, rb = (powerByTeam.get(b) || {}).composite;
-    return (rb || 0) - (ra || 0);
+    const sa = byTeam.get(a) || {}, sb = byTeam.get(b) || {};
+    if (winPct(sb) !== winPct(sa)) return winPct(sb) - winPct(sa);
+    const ea = teamEpaStats(a).net, eb = teamEpaStats(b).net;
+    if ((eb ?? -Infinity) !== (ea ?? -Infinity)) return (eb ?? -Infinity) - (ea ?? -Infinity);
+    return (sb.pointDiff||0) - (sa.pointDiff||0);
   }) : ((a, b) => {
     const sa = byTeam.get(a) || {}, sb = byTeam.get(b) || {};
     const confDiffA = (sa.confWins||0) - (sa.confLosses||0), confDiffB = (sb.confWins||0) - (sb.confLosses||0);
@@ -1738,26 +1430,17 @@ function renderStandings() {
     const streak = s.streak || '&#8212;';
     const streakCls = streak.startsWith('W') ? 'good' : (streak.startsWith('L') ? 'bad' : '');
     const isSel = t.t === state.selectedTeam;
-    let ratingCell = '';
-    if (isAllConferences) {
-      const pr = powerByTeam.get(t.t) || {};
-      const cls = pr.composite == null ? '' : (pr.composite > 0 ? 'good' : (pr.composite < 0 ? 'bad' : ''));
-      const pct1 = v => v == null ? '\u2014' : (v*100).toFixed(1) + '%';
-      const tip = `${t.t} \u2014 Power Rating\nRank: #${pr.rank}\nOff EPA: ${fmtEpa(pr.offEpa)}\nDef EPA allowed: ${fmtEpa(pr.defEpa)}\nOff Success Rate: ${pct1(pr.offSuccess)}\nDef Success Rate Allowed: ${pct1(pr.defSuccess)}\nExplosiveness: ${pr.explosiveness >= 0 ? '+' : ''}${((pr.explosiveness||0)*100).toFixed(1)}\nPoint Diff/G: ${pr.pointDiffPerGame >= 0 ? '+' : ''}${(pr.pointDiffPerGame||0).toFixed(1)}\nHead-to-Head: ${pr.h2hZ >= 0 ? '+' : ''}${(pr.h2hZ||0).toFixed(1)}\nStrength of Record: ${pr.sos >= 0 ? '+' : ''}${(pr.sos||0).toFixed(1)}${pr.h2hOver && pr.h2hOver.length ? `\nHead-to-head: ranked above ${pr.h2hOver.join(', ')} after beating ${pr.h2hOver.length > 1 ? 'them' : 'them'}` : ''}`;
-      ratingCell = `<td class="mono ${cls}" data-tip="${escapeHtml(tip)}">${pr.composite >= 0 ? '+' : ''}${(pr.composite||0).toFixed(2)}</td>`;
-    }
     return `
       <tr class="team-row ${isSel?'selected':''}" data-team="${escapeHtml(t.t)}">
         <td class="rank-num">${i+1}</td>
         <td class="left" style="font-weight:500;">
-          <span class="team-dot" style="background:${teamColor(t.t)};"></span><span class="team-name-link" data-team="${escapeHtml(t.t)}">${teamLabelHtml(t.t, isAllConferences)}</span>
+          <span class="team-dot" style="background:${teamColor(t.t)};"></span><span class="team-name-link" data-team="${escapeHtml(t.t)}">${escapeHtml(t.t)}</span>
         </td>
         <td class="mono">${record}</td>
         <td class="mono" style="color:var(--text-dim);">${confRecord}</td>
         <td class="mono">${s.pointsFor ?? '&#8212;'}</td>
         <td class="mono bad">${s.pointsAgainst ?? '&#8212;'}</td>
         <td class="mono ${diffCls}">${diff>0?'+':''}${diff}</td>
-        ${ratingCell}
         <td class="mono ${streakCls}">${streak}</td>
         <td class="left">${previousOpponentCell(t.t)}</td>
         <td class="left">${nextOpponentCell(t.t)}</td>
@@ -1771,7 +1454,7 @@ function renderStandings() {
   if (hidden.length) {
     html += `
       <tr class="collapse-toggle-row">
-        <td colspan="${isAllConferences ? 11 : 10}">
+        <td colspan="10">
           <button class="collapse-toggle-btn" id="standingsToggleBtn">&#9660; Show remaining ${hidden.length} teams</button>
         </td>
       </tr>
@@ -2487,7 +2170,7 @@ function updateHeaderText() {
     ? 'every team across all tracked conferences'
     : `every ${escapeHtml(ACTIVE_CONFERENCE)} team`;
   document.getElementById('ledeText').innerHTML =
-    `Team ratings, drive-by-drive breakdowns, and box scores for ${ledeSubject} &#8212; updated weekly.`;
+    `Team stats, drive-by-drive breakdowns, and box scores for ${ledeSubject} &#8212; updated weekly.`;
 }
 
 function renderConfTabs() {
@@ -2509,8 +2192,6 @@ function wirePageTabs() {
       const page = btn.dataset.page;
       document.getElementById('teamDashboardPage').style.display = page === 'team' ? '' : 'none';
       document.getElementById('epModelPage').style.display = page === 'ep' ? '' : 'none';
-      document.getElementById('powerRankingsPage').style.display = page === 'power' ? '' : 'none';
-      if (page === 'power') renderPowerRankings();
     });
   });
 }
@@ -2616,8 +2297,6 @@ function renderH2HSnapshot() {
   const epaA = teamEpaStats(teamA).net, epaB = teamEpaStats(teamB).net;
 
   const rows = [
-    { label: 'Standings', va: teamPowerRank(teamA), vb: teamPowerRank(teamB),
-      fmt: v => v == null ? '&#8212;' : `#${v}`, higherBetter: false },
     { label: 'Record', va: sa.wins||0, vb: sb.wins||0,
       fmt: (v, s) => `${s.wins||0}-${s.losses||0}`, higherBetter: true, raw: [sa, sb] },
     { label: 'EPA', va: epaA, vb: epaB, fmt: v => fmtEpa(v), higherBetter: true },
@@ -2630,7 +2309,7 @@ function renderH2HSnapshot() {
   wrap.innerHTML = `
     <table style="table-layout:fixed;">
       <colgroup><col style="width:34%"><col style="width:32%"><col style="width:34%"></colgroup>
-      <thead><tr><th style="text-align:right;">${teamLabelHtml(teamA)}</th><th></th><th style="text-align:left;">${teamLabelHtml(teamB)}</th></tr></thead>
+      <thead><tr><th style="text-align:right;">${escapeHtml(teamA)}</th><th></th><th style="text-align:left;">${escapeHtml(teamB)}</th></tr></thead>
       <tbody>
         ${rows.map(r => {
           const aBetter = r.higherBetter !== null && r.va != null && r.vb != null && (r.higherBetter ? r.va > r.vb : r.va < r.vb);
@@ -2700,8 +2379,8 @@ function renderRadarChart() {
     svg += `<circle cx="${p[0]}" cy="${p[1]}" r="5" fill="${colorB}" stroke="#fff" stroke-width="1" data-tip="${escapeHtml(teamB)}\n${escapeHtml(ax.label)}: ${val}" style="cursor:pointer;"/>`;
   });
 
-  svg += `<circle cx="${W/2-130}" cy="20" r="6" fill="${colorA}"/><text x="${W/2-116}" y="25" font-size="14" fill="var(--text)">${teamLabelSvgTspan(teamA)}</text>`;
-  svg += `<circle cx="${W/2+20}" cy="20" r="6" fill="${colorB}"/><text x="${W/2+34}" y="25" font-size="14" fill="var(--text)">${teamLabelSvgTspan(teamB)}</text>`;
+  svg += `<circle cx="${W/2-130}" cy="20" r="6" fill="${colorA}"/><text x="${W/2-116}" y="25" font-size="14" fill="var(--text)">${escapeHtml(teamA)}</text>`;
+  svg += `<circle cx="${W/2+20}" cy="20" r="6" fill="${colorB}"/><text x="${W/2+34}" y="25" font-size="14" fill="var(--text)">${escapeHtml(teamB)}</text>`;
   svg += `</svg>`;
   wrap.innerHTML = svg;
 }
@@ -2982,8 +2661,8 @@ function renderTrendCompare() {
   drawSeries(gamesA, valsA, colorA, false, teamA);
   drawSeries(gamesB, valsB, colorB, true, teamB);
 
-  svg += `<circle cx="${W-190}" cy="16" r="5" fill="${colorA}"/><text x="${W-180}" y="20" font-size="12" fill="var(--text)">${teamLabelSvgTspan(teamA)}</text>`;
-  svg += `<circle cx="${W-90}" cy="16" r="5" fill="${colorB}"/><text x="${W-80}" y="20" font-size="12" fill="var(--text)">${teamLabelSvgTspan(teamB)}</text>`;
+  svg += `<circle cx="${W-190}" cy="16" r="5" fill="${colorA}"/><text x="${W-180}" y="20" font-size="12" fill="var(--text)">${escapeHtml(teamA)}</text>`;
+  svg += `<circle cx="${W-90}" cy="16" r="5" fill="${colorB}"/><text x="${W-80}" y="20" font-size="12" fill="var(--text)">${escapeHtml(teamB)}</text>`;
   svg += `</svg>`;
   wrap.innerHTML = svg;
 }
@@ -3079,15 +2758,6 @@ let epEntityB = 'TCU';
 
 // Returns the combined play list for a team, or every play from every team
 // in a conference when comparing at the conference level.
-// epEntityA/B can be either a team or a conference depending on the mode toggle, so only
-// show the national rank badge when it's actually a team.
-function epEntityLabelHtml(entity) {
-  return epMode === 'team' ? teamLabelHtml(entity) : escapeHtml(entity);
-}
-function epEntityLabelSvgTspan(entity) {
-  return epMode === 'team' ? teamLabelSvgTspan(entity) : escapeHtml(entity);
-}
-
 function getEntityPlays(entity) {
   if (epMode === 'team') return teamPlays[entity] || [];
   const roster = conferenceRosters[entity] || [];
@@ -3187,7 +2857,7 @@ function renderEPSummary() {
   wrap.innerHTML = `
     <table style="table-layout:fixed;">
       <colgroup><col style="width:34%"><col style="width:32%"><col style="width:34%"></colgroup>
-      <thead><tr><th style="text-align:right;">${epEntityLabelHtml(epEntityA)}</th><th></th><th style="text-align:left;">${epEntityLabelHtml(epEntityB)}</th></tr></thead>
+      <thead><tr><th style="text-align:right;">${escapeHtml(epEntityA)}</th><th></th><th style="text-align:left;">${escapeHtml(epEntityB)}</th></tr></thead>
       <tbody>
         ${rows.map(r => {
           const aBetter = r.higherBetter !== null && (r.higherBetter ? r.va > r.vb : r.va < r.vb);
@@ -3231,8 +2901,8 @@ function renderEPByDown() {
 
   let svg = svgOpen(W, H);
   svg += `<line x1="${M.l}" y1="${zeroY}" x2="${W-M.r}" y2="${zeroY}" stroke="var(--line)" stroke-width="1"/>`;
-  svg += `<circle cx="${M.l}" cy="16" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="20" font-size="11" fill="var(--text)">${epEntityLabelSvgTspan(epEntityA)}</text>`;
-  svg += `<circle cx="${M.l+150}" cy="16" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="20" font-size="11" fill="var(--text)">${epEntityLabelSvgTspan(epEntityB)}</text>`;
+  svg += `<circle cx="${M.l}" cy="16" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityA)}</text>`;
+  svg += `<circle cx="${M.l+150}" cy="16" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityB)}</text>`;
   downs.forEach((d, i) => {
     const gx = M.l + i*groupW;
     [[valsA[i], 'var(--accent)', epEntityA], [valsB[i], 'var(--accent2)', epEntityB]].forEach(([v, color, name], j) => {
@@ -3275,8 +2945,8 @@ function renderEPByType() {
 
   let svg = svgOpen(W, H);
   svg += `<line x1="${M.l}" y1="${zeroY}" x2="${W-M.r}" y2="${zeroY}" stroke="var(--line)" stroke-width="1"/>`;
-  svg += `<circle cx="${M.l}" cy="16" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="20" font-size="11" fill="var(--text)">${epEntityLabelSvgTspan(epEntityA)}</text>`;
-  svg += `<circle cx="${M.l+150}" cy="16" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="20" font-size="11" fill="var(--text)">${epEntityLabelSvgTspan(epEntityB)}</text>`;
+  svg += `<circle cx="${M.l}" cy="16" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityA)}</text>`;
+  svg += `<circle cx="${M.l+150}" cy="16" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="20" font-size="11" fill="var(--text)">${escapeHtml(epEntityB)}</text>`;
   types.forEach((t, i) => {
     const gx = M.l + i*groupW;
     [[valsA[i], 'var(--accent)', epEntityA, nA[i]], [valsB[i], 'var(--accent2)', epEntityB, nB[i]]].forEach(([v, color, name, n], j) => {
@@ -3337,8 +3007,8 @@ function renderEPCumulative() {
     svg += `<line x1="${px(wk)}" y1="${M.t}" x2="${px(wk)}" y2="${H-M.b}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2,4"/>`;
   });
 
-  svg += `<circle cx="${M.l}" cy="12" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="16" font-size="11" fill="var(--text)">${epEntityLabelSvgTspan(epEntityA)}</text>`;
-  svg += `<circle cx="${M.l+150}" cy="12" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="16" font-size="11" fill="var(--text)">${epEntityLabelSvgTspan(epEntityB)}</text>`;
+  svg += `<circle cx="${M.l}" cy="12" r="5" fill="var(--accent)"/><text x="${M.l+10}" y="16" font-size="11" fill="var(--text)">${escapeHtml(epEntityA)}</text>`;
+  svg += `<circle cx="${M.l+150}" cy="12" r="5" fill="var(--accent2)"/><text x="${M.l+160}" y="16" font-size="11" fill="var(--text)">${escapeHtml(epEntityB)}</text>`;
 
   [[seriesA, 'var(--accent)', epEntityA], [seriesB, 'var(--accent2)', epEntityB]].forEach(([series, color, name]) => {
     if (!series.length) return;
@@ -3379,7 +3049,7 @@ function renderEPRedZone() {
   wrap.innerHTML = `
     <table style="table-layout:fixed;">
       <colgroup><col style="width:34%"><col style="width:32%"><col style="width:34%"></colgroup>
-      <thead><tr><th style="text-align:right;">${epEntityLabelHtml(epEntityA)}</th><th></th><th style="text-align:left;">${epEntityLabelHtml(epEntityB)}</th></tr></thead>
+      <thead><tr><th style="text-align:right;">${escapeHtml(epEntityA)}</th><th></th><th style="text-align:left;">${escapeHtml(epEntityB)}</th></tr></thead>
       <tbody>
         ${rows.map(r => {
           const aBetter = r.higherBetter !== null && (r.higherBetter ? r.va > r.vb : r.va < r.vb);
@@ -3439,9 +3109,9 @@ function renderEPExplosive() {
   }
 
   wrap.innerHTML = `
-    <div class="card-sub" style="margin-bottom:6px; font-weight:600; color:var(--text);">${epEntityLabelHtml(epEntityA)}</div>
+    <div class="card-sub" style="margin-bottom:6px; font-weight:600; color:var(--text);">${escapeHtml(epEntityA)}</div>
     <div class="table-scroll" style="max-height:none; overflow-x:auto; overflow-y:visible; margin-bottom:22px;">${tableFor(epEntityA)}</div>
-    <div class="card-sub" style="margin-bottom:6px; font-weight:600; color:var(--text);">${epEntityLabelHtml(epEntityB)}</div>
+    <div class="card-sub" style="margin-bottom:6px; font-weight:600; color:var(--text);">${escapeHtml(epEntityB)}</div>
     <div class="table-scroll" style="max-height:none; overflow-x:auto; overflow-y:visible;">${tableFor(epEntityB)}</div>
   `;
 }
