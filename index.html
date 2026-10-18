@@ -841,7 +841,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
       <br><br>
       <b>Rating = 24% &times; Net EPA/play + 12% &times; Off Success Rate + 12% &times; Def Success Rate Allowed (inverted) + 12% &times; Explosiveness + 22% &times; Point Differential/game + 18% &times; Strength of Record</b>
       <br><br>
-      EPA, Success Rate, and Explosiveness are kept as three distinct signals rather than restatements of each other: EPA captures how much value a team creates per play, Success Rate captures down-to-down consistency, and Explosiveness captures big-play ability (and vulnerability) that Success Rate specifically misses. Together these play-level efficiency pieces make up 60% of the rating, weighted heaviest since they tend to be more predictive and less noisy than a handful of game results this early in a season. Strength of Record comes from an iterative rating (each team's score = their own average scoring margin plus the average rating of their opponents, solved by repeating that calculation until it stops changing) &#8212; the same approach behind Sports Reference's SRS. That rewards playing and beating good opponents rather than just racking up wins against weak competition. See the Power Rankings page for the full national list and a breakdown of every component. Teams ranked in the national top 25 show their rank next to their name (e.g. BYU <span class="rank-badge">#2</span>) throughout the dashboard.
+      EPA, Success Rate, and Explosiveness are kept as three distinct signals rather than restatements of each other: EPA captures how much value a team creates per play, Success Rate captures down-to-down consistency, and Explosiveness captures big-play ability (and vulnerability) that Success Rate specifically misses. Together these play-level efficiency pieces make up 60% of the rating, weighted heaviest since they tend to be more predictive and less noisy than a handful of game results this early in a season. Strength of Record comes from an iterative rating (each team's score = their own average scoring margin plus the average rating of their opponents, solved by repeating that calculation until it stops changing) &#8212; the same approach behind Sports Reference's SRS. That rewards playing and beating good opponents rather than just racking up wins against weak competition. A head-to-head rule then applies on top: if a team beat another team that the formula rates slightly above it (within 0.25 rating points), the winner is moved up to just above the team it beat, so a head-to-head win is never ranked below the loss. See the Power Rankings page for the full national list and a breakdown of every component. Teams ranked in the national top 25 show their rank next to their name (e.g. BYU <span class="rank-badge">#2</span>) throughout the dashboard.
     </div>
   </div>
 
@@ -1152,7 +1152,7 @@ tr.team-row.selected td { background: var(--surface-raised); }
       <br><br>
       <b>Rating = 24% &times; Net EPA/play + 12% &times; Off Success Rate + 12% &times; Def Success Rate Allowed (inverted) + 12% &times; Explosiveness + 22% &times; Point Differential/game + 18% &times; Strength of Record</b>
       <br><br>
-      EPA, Success Rate, and Explosiveness are kept as three distinct signals rather than restatements of each other: EPA captures how much value a team creates per play, Success Rate captures down-to-down consistency, and Explosiveness captures big-play ability (and vulnerability) that Success Rate specifically misses. Together these play-level efficiency pieces make up 60% of the rating, weighted heaviest since they tend to be more predictive and less noisy than a handful of game results this early in a season. Strength of Record comes from an iterative rating (each team's score = their own average scoring margin plus the average rating of their opponents, solved by repeating that calculation until it stops changing) &#8212; the same approach behind Sports Reference's SRS. That naturally rewards playing &mdash; and beating &mdash; good opponents, rather than just counting wins. Games against non-FBS opponents are excluded from the schedule-strength calculation, since those opponents don't have a rating in this system.
+      EPA, Success Rate, and Explosiveness are kept as three distinct signals rather than restatements of each other: EPA captures how much value a team creates per play, Success Rate captures down-to-down consistency, and Explosiveness captures big-play ability (and vulnerability) that Success Rate specifically misses. Together these play-level efficiency pieces make up 60% of the rating, weighted heaviest since they tend to be more predictive and less noisy than a handful of game results this early in a season. Strength of Record comes from an iterative rating (each team's score = their own average scoring margin plus the average rating of their opponents, solved by repeating that calculation until it stops changing) &#8212; the same approach behind Sports Reference's SRS. That naturally rewards playing &mdash; and beating &mdash; good opponents, rather than just counting wins. A head-to-head rule then applies on top: if a team beat another team that the formula rates slightly above it (within 0.25 rating points), the winner is moved up to just above the team it beat, so a head-to-head win is never ranked below the loss. Games against non-FBS opponents are excluded from the schedule-strength calculation, since those opponents don't have a rating in this system.
     </div>
   </div>
 
@@ -1519,6 +1519,9 @@ function zScoreMap(valuesByTeam, teams) {
 // big-play ability/vulnerability that Success Rate specifically misses.
 const POWER_WEIGHTS = { epa: 0.24, offSuccess: 0.12, defSuccess: 0.12, explosiveness: 0.12, pointDiff: 0.22, sos: 0.18 };
 
+// Head-to-head adjustment limits (in composite-rating units; the league-wide standard deviation
+// is roughly 0.75).
+const H2H_MAX_GAP = 0.25;
 function computePowerRankings() {
   if (computePowerRankings._cache) return computePowerRankings._cache;
   const allTeams = conferenceRosters['All Conferences'] || [];
@@ -1558,9 +1561,38 @@ function computePowerRankings() {
       + POWER_WEIGHTS.sos * zSOS[t];
   });
 
+  // Head-to-head rule: a team that beat another shouldn't be ranked below it when the two are
+  // close. Start from the order by raw rating, then for every result where the winner sits
+  // below the loser AND the raw ratings are within H2H_MAX_GAP, move the winner to just above
+  // the loser. Ratings themselves are not changed (so there is no compounding); only the
+  // order is. Games are applied in week order and passes are capped so a rare cycle
+  // (A beat B, B beat C, C beat A) can't loop forever. Bigger gaps are left alone, so one
+  // fluke result can't vault a team past much better ones.
+  const h2hGames = [];
+  allTeams.forEach(t => (teamSchedule[t] || []).forEach(e => {
+    if (e.completed && e.result === 'W' && composite[e.opponent] !== undefined) {
+      h2hGames.push({ w: t, l: e.opponent, week: e.week });
+    }
+  }));
+  h2hGames.sort((a, b) => a.week - b.week);
   const ranked = allTeams.slice().sort((a, b) => composite[b] - composite[a]);
+  const h2hOver = {};
+  for (let pass = 0; pass < 12; pass++) {
+    let changed = false;
+    h2hGames.forEach(g => {
+      const wi = ranked.indexOf(g.w), li = ranked.indexOf(g.l);
+      if (wi > li && composite[g.l] - composite[g.w] <= H2H_MAX_GAP) {
+        ranked.splice(wi, 1);
+        ranked.splice(li, 0, g.w);          // li is unchanged: the winner was below the loser
+        (h2hOver[g.w] = h2hOver[g.w] || new Set()).add(g.l);
+        changed = true;
+      }
+    });
+    if (!changed) break;
+  }
   const result = ranked.map((t, i) => ({
     rank: i + 1, team: t, composite: composite[t],
+    h2hOver: h2hOver[t] ? Array.from(h2hOver[t]) : [],
     offEpa: offEpa[t], defEpa: defEpa[t],
     offSuccess: offSuccess[t], defSuccess: defSuccess[t], explosiveness: explosiveness[t],
     pointDiffPerGame: pointDiffPerGame[t], sos: sos[t]
@@ -1575,7 +1607,7 @@ function renderPowerRankings() {
   const byTeam = new Map(standings.map(s => [s.t, s]));
 
   const subEl = document.getElementById('powerRankingsSub');
-  if (subEl) subEl.textContent = `All ${rows.length} FBS teams, ranked by composite power rating (higher is better).`;
+  if (subEl) subEl.textContent = `All ${rows.length} FBS teams, ranked by composite power rating (higher is better), with a head-to-head adjustment: an "H" marks a team placed above a close-rated team it beat.`;
 
   wrap.innerHTML = `
     <table>
@@ -1602,7 +1634,7 @@ function renderPowerRankings() {
           const signed1 = v => v == null ? '&#8212;' : (v >= 0 ? '+' : '') + (v*100).toFixed(1);
           return `
           <tr>
-            <td class="rank-num">${r.rank}</td>
+            <td class="rank-num"${r.h2hOver.length ? ` data-tip="${escapeHtml('HEAD-TO-HEAD\n\nRanked above ' + r.h2hOver.join(', ') + ' because ' + r.team + ' beat ' + (r.h2hOver.length > 1 ? 'them' : 'them') + ' and the two ratings are close, even though the formula alone rates them slightly lower.')}"` : ''}>${r.rank}${r.h2hOver.length ? '<sup style="color:var(--text-dim);line-height:0;">H</sup>' : ''}</td>
             <td class="left" style="font-weight:500;">
               <span class="team-dot" style="background:${teamColor(r.team)};"></span><span class="team-name-link" data-team="${escapeHtml(r.team)}">${escapeHtml(r.team)}</span>
             </td>
@@ -1679,7 +1711,7 @@ function renderStandings() {
       const pr = powerByTeam.get(t.t) || {};
       const cls = pr.composite == null ? '' : (pr.composite > 0 ? 'good' : (pr.composite < 0 ? 'bad' : ''));
       const pct1 = v => v == null ? '\u2014' : (v*100).toFixed(1) + '%';
-      const tip = `${t.t} \u2014 Power Rating\nRank: #${pr.rank}\nOff EPA: ${fmtEpa(pr.offEpa)}\nDef EPA allowed: ${fmtEpa(pr.defEpa)}\nOff Success Rate: ${pct1(pr.offSuccess)}\nDef Success Rate Allowed: ${pct1(pr.defSuccess)}\nExplosiveness: ${pr.explosiveness >= 0 ? '+' : ''}${((pr.explosiveness||0)*100).toFixed(1)}\nPoint Diff/G: ${pr.pointDiffPerGame >= 0 ? '+' : ''}${(pr.pointDiffPerGame||0).toFixed(1)}\nStrength of Record: ${pr.sos >= 0 ? '+' : ''}${(pr.sos||0).toFixed(1)}`;
+      const tip = `${t.t} \u2014 Power Rating\nRank: #${pr.rank}\nOff EPA: ${fmtEpa(pr.offEpa)}\nDef EPA allowed: ${fmtEpa(pr.defEpa)}\nOff Success Rate: ${pct1(pr.offSuccess)}\nDef Success Rate Allowed: ${pct1(pr.defSuccess)}\nExplosiveness: ${pr.explosiveness >= 0 ? '+' : ''}${((pr.explosiveness||0)*100).toFixed(1)}\nPoint Diff/G: ${pr.pointDiffPerGame >= 0 ? '+' : ''}${(pr.pointDiffPerGame||0).toFixed(1)}\nStrength of Record: ${pr.sos >= 0 ? '+' : ''}${(pr.sos||0).toFixed(1)}${pr.h2hOver && pr.h2hOver.length ? `\nHead-to-head: ranked above ${pr.h2hOver.join(', ')} after beating ${pr.h2hOver.length > 1 ? 'them' : 'them'}` : ''}`;
       ratingCell = `<td class="mono ${cls}" data-tip="${escapeHtml(tip)}">${pr.composite >= 0 ? '+' : ''}${(pr.composite||0).toFixed(2)}</td>`;
     }
     return `
