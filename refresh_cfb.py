@@ -441,6 +441,25 @@ def merge_players(D, gp_lists, week, week_games):
     return len(got)
 
 
+# ----------------------------------------------------------------- rosters
+def merge_rosters(D):
+    """One call: class year, jersey, height/weight, hometown, position for every FBS player."""
+    roster = api('/roster', {'year': YEAR, 'classification': 'fbs'})
+    byid = {str(r['id']): r for r in roster if r.get('id') is not None}
+    info = D.setdefault('playerInfo', {})
+    n = 0
+    for p in D['players']:
+        r = byid.get(p['id'])
+        if not r:
+            continue
+        info[p['id']] = {'j': r.get('jersey'), 'y': r.get('year'), 'h': r.get('height'),
+                         'w': r.get('weight'), 'hc': r.get('homeCity') or '', 'hs': r.get('homeState') or ''}
+        if not p.get('position') and r.get('position'):
+            p['position'] = r['position']
+        n += 1
+    return n
+
+
 # ----------------------------------------------------------------- main
 def selftest(D):
     """Recompute derived structures from current data and report differences."""
@@ -533,6 +552,7 @@ def main():
         return
     recompute_standings(D)
     recompute_next_opponent(D)
+    print('  rosters matched: %d' % merge_rosters(D))
     html = store(html, m, D)
     today = datetime.date.today()
     html = re.sub(r"LAST_UPDATE_DATE\s*=\s*'[^']*'",
